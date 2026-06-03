@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+motor>=3.6
+openai
+google-generativeai
+faster-whisper
+gtts
+pyttsx3
+httpx
+python-dotenv
+setuptools
