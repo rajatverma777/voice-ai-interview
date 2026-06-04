@@ -4,6 +4,7 @@ python-multipart
 pydantic
 pydantic-settings
 motor>=3.6
+pymongo>=4.9
 openai
 google-generativeai
 faster-whisper
@@ -12,3 +13,7 @@ pyttsx3
 httpx
 python-dotenv
 setuptools
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+edge-tts

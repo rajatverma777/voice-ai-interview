@@ -10,6 +10,25 @@ class InterviewMode(str, Enum):
     SYSTEM_DESIGN = "system_design"
 
 
+# ── Auth ────────────────────────────────────────────────────────────
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: dict
+
+
+# ── Chat ────────────────────────────────────────────────────────────
 class Message(BaseModel):
     role: str  # "user" or "assistant"
     content: str
