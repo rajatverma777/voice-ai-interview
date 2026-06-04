@@ -2,3 +2,14 @@ node_modules
 .env
 dist
 build
+# Mac
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual Env
+.venv/
+env/
