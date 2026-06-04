@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'https://voice-ai-backend-yk1m.onrender.com';
 
 const api = axios.create({ baseURL: BASE_URL, timeout: 60000 });
 
