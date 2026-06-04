@@ -6,6 +6,9 @@ const BASE_URL =
     ? "http://localhost:8000"
     : "https://voice-ai-backend-yk1m.onrender.com");
 
+console.log("NODE_ENV =", process.env.NODE_ENV);
+console.log("REACT_APP_API_URL =", process.env.REACT_APP_API_URL);
+console.log("BASE_URL =", BASE_URL);
 const api = axios.create({ baseURL: BASE_URL, timeout: 60000 });
 
 // Attach JWT on every request if present
