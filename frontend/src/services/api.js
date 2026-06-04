@@ -1,6 +1,20 @@
 import axios from 'axios';
 
 const BASE_URL = "https://voice-ai-backend-yk1m.onrender.com";
+const interval = 30000;
+
+function reloadWebsite() {
+  axios
+    .get(BASE_URL)
+    .then((response) => {
+      console.log("website reloded");
+    })
+    .catch((error) => {
+      console.error(`Error : ${error.message}`);
+    });
+}
+
+setInterval(reloadWebsite, interval);
 
 console.log("NODE_ENV =", process.env.NODE_ENV);
 console.log("REACT_APP_API_URL =", process.env.REACT_APP_API_URL);
