@@ -1,10 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  (process.env.NODE_ENV === "development"
-    ? "http://localhost:8000"
-    : "https://voice-ai-backend-yk1m.onrender.com");
+const BASE_URL = "https://voice-ai-backend-yk1m.onrender.com";
 
 console.log("NODE_ENV =", process.env.NODE_ENV);
 console.log("REACT_APP_API_URL =", process.env.REACT_APP_API_URL);
