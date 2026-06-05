@@ -179,7 +179,7 @@ function InputField({ label, name, type, placeholder, value, onChange, icon }) {
       <div className={`relative rounded-xl border transition-all duration-200 ${
         focused ? 'border-accent bg-panel/30 shadow-glow-sm' : 'border-border bg-panel/10'
       }`}>
-        <span className={`absolute left-4.5 top-1/2 -translate-y-1/2 transition-colors ${
+        <span className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${
           focused ? 'text-accent' : 'text-text-muted'
         }`}>{icon}</span>
         <input
