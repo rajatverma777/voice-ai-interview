@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 export default function AuthPage() {
   const [mode, setMode]     = useState('login'); // 'login' | 'register'
   const [form, setForm]     = useState({ username: '', email: '', password: '' });
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError]   = useState('');
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuth();
@@ -15,13 +16,21 @@ export default function AuthPage() {
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
+
+    if (mode === 'register') {
+      if (form.password !== confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (mode === 'login') {
         await login(form.email, form.password);
       } else {
         if (!form.username.trim()) {
-          setError('Codename is required');
+          setError('Username is required');
           setLoading(false);
           return;
         }
@@ -29,7 +38,7 @@ export default function AuthPage() {
       }
       navigate('/interview');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Credentials validation error. Verify transmission parameters.');
+      setError(err.response?.data?.detail || 'Validation error. Please verify your credentials.');
     } finally {
       setLoading(false);
     }
@@ -43,29 +52,29 @@ export default function AuthPage() {
       <div className="relative w-full max-w-sm mt-6 z-10">
         
         {/* Brand header */}
-        <div className="flex flex-col items-center mb-8 text-center font-mono">
+        <div className="flex flex-col items-center mb-8 text-center font-sans">
           <div className="w-12 h-12 rounded-2xl bg-void border border-accent/40 flex items-center justify-center text-accent shadow-glow mb-4">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
             </svg>
           </div>
           <h1 className="text-xl font-display font-extrabold tracking-wide text-white uppercase">
-            VOICE_AI <span className="text-accent font-light">GATEWAY</span>
+            VOICE_AI <span className="text-accent font-light">COACH</span>
           </h1>
-          <p className="text-text-muted text-[10px] tracking-widest mt-1 uppercase">AUTHENTICATION REQUIRED</p>
+          <p className="text-text-muted text-[10px] tracking-wider mt-1 uppercase">Sign In to Your Account</p>
         </div>
 
         {/* glass Card */}
         <div className="glass rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass relative">
           
           {/* Tab selector */}
-          <div className="flex rounded-2xl overflow-hidden border border-border bg-void/50 p-1 mb-6 font-mono text-[11px]">
+          <div className="flex rounded-2xl overflow-hidden border border-border bg-void/50 p-1 mb-6 font-sans text-xs">
             {['login', 'register'].map(m => (
               <button
                 key={m}
                 type="button"
-                onClick={() => { setMode(m); setError(''); }}
-                className={`flex-1 py-2 font-bold uppercase tracking-wider rounded-xl transition-all duration-200 ${
+                onClick={() => { setMode(m); setError(''); setConfirmPassword(''); }}
+                className={`flex-1 py-2 font-bold rounded-xl transition-all duration-200 ${
                   mode === m
                     ? 'bg-accent text-void shadow-glow-sm font-extrabold'
                     : 'text-text-secondary hover:text-white'
@@ -76,10 +85,10 @@ export default function AuthPage() {
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4 font-sans">
             {mode === 'register' && (
               <InputField
-                label="CODENAME"
+                label="Username"
                 name="username"
                 type="text"
                 placeholder="e.g. rajat_verma"
@@ -89,7 +98,7 @@ export default function AuthPage() {
               />
             )}
             <InputField
-              label="EMAIL ADDRESS"
+              label="Email Address"
               name="email"
               type="email"
               placeholder="you@domain.com"
@@ -98,25 +107,37 @@ export default function AuthPage() {
               icon={<EmailIcon />}
             />
             <InputField
-              label="SECRET ACCESS KEY"
+              label="Password"
               name="password"
               type="password"
-              placeholder={mode === 'register' ? 'Min 6 characters' : 'Enter passkey'}
+              placeholder={mode === 'register' ? 'Min 6 characters' : 'Enter your password'}
               value={form.password}
               onChange={handleChange}
               icon={<LockIcon />}
             />
 
+            {mode === 'register' && (
+              <InputField
+                label="Confirm Password"
+                name="confirmPassword"
+                type="password"
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                icon={<LockIcon />}
+              />
+            )}
+
             {error && (
-              <div className="rounded-xl bg-red-500/5 border border-red-500/25 px-4 py-3 text-[10px] text-red-400 font-mono">
-                [EXCEPTION]: {error}
+              <div className="rounded-xl bg-red-500/5 border border-red-500/25 px-4 py-3 text-xs text-red-400 font-mono">
+                [Error]: {error}
               </div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-accent to-teal text-white font-bold tracking-widest rounded-xl shadow-glow hover:shadow-[0_0_25px_rgba(0,210,255,0.45)] transition-all uppercase text-[10px] font-mono mt-4 hover:scale-[1.01]"
+              className="w-full py-3 bg-gradient-to-r from-accent to-teal text-white font-bold tracking-wider rounded-xl shadow-glow hover:shadow-[0_0_25px_rgba(0,210,255,0.45)] transition-all uppercase text-[11px] font-sans mt-4 hover:scale-[1.01]"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -124,21 +145,21 @@ export default function AuthPage() {
                     <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
                     <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
                   </svg>
-                  VALIDATING ACCESS...
+                  Processing...
                 </span>
               ) : (
-                mode === 'login' ? 'Establish link →' : 'Initialize Account →'
+                mode === 'login' ? 'Sign In →' : 'Register →'
               )}
             </button>
           </form>
 
-          <p className="text-center text-text-muted text-[10px] mt-6 font-mono">
-            {mode === 'login' ? "NEW PROTOCOL? " : 'DECOMPRESS GATEWAY? '}
+          <p className="text-center text-text-muted text-xs mt-6 font-sans">
+            {mode === 'login' ? "New user? " : 'Already have an account? '}
             <button
-              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
-              className="text-accent font-bold transition-colors uppercase tracking-wider underline decoration-accent/30 decoration-2 underline-offset-4 ml-1"
+              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setConfirmPassword(''); }}
+              className="text-accent font-bold transition-colors uppercase tracking-wider underline decoration-accent/30 decoration-2 underline-offset-4 ml-1 text-[11px]"
             >
-              {mode === 'login' ? 'Create passkey' : 'Access link'}
+              {mode === 'login' ? 'Register' : 'Sign In'}
             </button>
           </p>
         </div>
@@ -153,8 +174,8 @@ function InputField({ label, name, type, placeholder, value, onChange, icon }) {
   const showPasswordOption = type === 'password';
 
   return (
-    <div className="space-y-1.5 text-left font-mono">
-      <label className="text-[9px] font-bold text-text-muted tracking-widest uppercase">{label}</label>
+    <div className="space-y-1.5 text-left font-sans">
+      <label className="text-[11px] font-semibold text-text-secondary tracking-wide uppercase">{label}</label>
       <div className={`relative rounded-xl border transition-all duration-200 ${
         focused ? 'border-accent bg-panel/30 shadow-glow-sm' : 'border-border bg-panel/10'
       }`}>
