@@ -121,14 +121,27 @@ export default function HomePage() {
       <section className="relative w-full max-w-[94%] xl:max-w-[1440px] mx-auto flex flex-col items-center text-center pt-10 pb-20 flex-1 justify-center z-10">
         
         {/* Status Badge */}
-        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-mono tracking-widest uppercase mb-8 border transition-all ${
+        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-mono tracking-wider uppercase mb-8 border transition-all ${
           backendStatus === 'online'
             ? 'border-accent/30 bg-accent/5 text-accent shadow-glow'
-            : 'border-border bg-panel/30 text-text-muted'
+            : backendStatus === 'offline'
+              ? 'border-red-500/35 bg-red-500/5 text-red-400'
+              : 'border-border bg-panel/30 text-text-secondary'
         }`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${backendStatus === 'online' ? 'bg-accent animate-pulse shadow-glow' : 'bg-text-muted'}`} />
+          {backendStatus === 'checking' ? (
+            <svg className="animate-spin h-3 w-3 text-accent" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path className="opacity-80" fill="currentColor" d="M12 2a10 10 0 0 1 10 10" />
+            </svg>
+          ) : (
+            <span className={`w-1.5 h-1.5 rounded-full ${backendStatus === 'online' ? 'bg-accent animate-pulse shadow-glow' : 'bg-red-500 animate-pulse'}`} />
+          )}
           <span>
-            {backendStatus === 'online' ? 'CORE PROTOCOL // CONNECTED' : 'SYS // TIMEOUT'}
+            {backendStatus === 'online' 
+              ? 'Server Connected' 
+              : backendStatus === 'offline' 
+                ? 'Server Offline' 
+                : 'Connecting to Server...'}
           </span>
         </div>
 
@@ -146,7 +159,12 @@ export default function HomePage() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center font-mono text-xs w-full sm:w-auto">
           <button
             onClick={() => navigate('/interview')}
-            className="px-8 py-3.5 bg-gradient-to-r from-accent to-teal text-white font-bold tracking-widest rounded-xl shadow-glow hover:shadow-[0_0_25px_rgba(0,210,255,0.45)] transition-all hover:scale-[1.02] uppercase"
+            disabled={backendStatus !== 'online'}
+            className={`px-8 py-3.5 bg-gradient-to-r from-accent to-teal text-white font-bold tracking-widest rounded-xl transition-all uppercase ${
+              backendStatus === 'online'
+                ? 'shadow-glow hover:shadow-[0_0_25px_rgba(0,210,255,0.45)] hover:scale-[1.02] cursor-pointer'
+                : 'opacity-40 cursor-not-allowed'
+            }`}
           >
             Start Interview
           </button>
