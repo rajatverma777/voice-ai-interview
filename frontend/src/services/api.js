@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const BASE_URL = "https://voice-ai-backend-yk1m.onrender.com";
+const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? "http://localhost:8000"
+  : "https://voice-ai-backend-yk1m.onrender.com";
 const interval = 30000;
 
 function reloadWebsite() {
