@@ -3,89 +3,69 @@ import React from 'react';
 const MODES = [
   {
     id: 'dsa',
-    label: 'DSA & Algorithms',
+    label: 'Algorithms & DSA',
     icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
       </svg>
     ),
-    desc: 'Arrays, trees, graphs, DP',
-    color: 'accent',
+    desc: 'Complexity, recursion, sorting, trees',
   },
   {
     id: 'hr',
-    label: 'HR & Behavioral',
+    label: 'Behavioral & HR',
     icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
         <circle cx="9" cy="7" r="4"/>
         <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
         <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
       </svg>
     ),
-    desc: 'Soft skills, STAR method',
-    color: 'teal',
+    desc: 'STAR framework, situational queries',
   },
   {
     id: 'system_design',
     label: 'System Design',
     icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="2" y="3" width="20" height="14" rx="2"/>
-        <line x1="8" y1="21" x2="16" y2="21"/>
-        <line x1="12" y1="17" x2="12" y2="21"/>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/>
       </svg>
     ),
-    desc: 'Scalability, architecture',
-    color: 'purple',
+    desc: 'Scalability, replication, microservices',
   },
 ];
 
-const colorMap = {
-  accent: {
-    active: 'bg-accent/10 border-accent/50 text-accent',
-    icon: 'text-accent',
-    hover: 'hover:border-accent/30',
-  },
-  teal: {
-    active: 'bg-teal/10 border-teal/50 text-teal',
-    icon: 'text-teal',
-    hover: 'hover:border-teal/30',
-  },
-  purple: {
-    active: 'bg-purple-500/10 border-purple-500/50 text-purple-400',
-    icon: 'text-purple-400',
-    hover: 'hover:border-purple-500/30',
-  },
-};
-
 export default function ModeSelector({ selected, onChange, disabled }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="flex flex-col gap-2.5 w-full">
       {MODES.map(mode => {
         const isActive = selected === mode.id;
-        const c = colorMap[mode.color];
         return (
           <button
             key={mode.id}
             onClick={() => onChange(mode.id)}
             disabled={disabled}
             className={`
-              flex flex-col items-center gap-2 p-3 rounded-xl border text-center
-              transition-all duration-200 group
-              ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+              flex items-center gap-3.5 p-3.5 rounded-2xl border text-left
+              transition-all duration-200 group w-full
+              ${disabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'}
               ${isActive
-                ? `${c.active} shadow-sm`
-                : `border-border text-text-secondary bg-panel/50 ${!disabled ? c.hover : ''}`
+                ? `bg-accent/[0.04] border-accent/60 text-accent shadow-glow-sm`
+                : `border-border/60 text-text-secondary bg-void/30 ${!disabled ? 'hover:border-accent/40 hover:bg-void/50 hover:text-white' : ''}`
               }
             `}
           >
-            <span className={`transition-colors ${isActive ? c.icon : 'text-text-muted group-hover:' + c.icon.split('-')[1]}`}>
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
+              isActive 
+                ? 'bg-void border border-accent/20 text-accent' 
+                : 'bg-void border border-border/80 text-text-muted group-hover:text-accent group-hover:border-accent/30'
+            }`}>
               {mode.icon}
-            </span>
-            <div>
-              <div className="text-xs font-semibold leading-tight">{mode.label}</div>
-              <div className="text-xs text-text-muted mt-0.5 hidden sm:block">{mode.desc}</div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-mono font-bold leading-tight uppercase tracking-wider">{mode.label}</div>
+              <div className="text-[9.5px] text-text-muted mt-1 truncate">{mode.desc}</div>
             </div>
           </button>
         );

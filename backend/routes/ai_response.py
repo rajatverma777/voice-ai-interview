@@ -15,7 +15,8 @@ async def chat(request: ChatRequest):
         ai_response = await generate_response(
             message=request.message,
             history=request.history,
-            mode=request.mode
+            mode=request.mode,
+            difficulty=request.difficulty
         )
 
         # Analyze response for feedback
@@ -31,7 +32,7 @@ async def chat(request: ChatRequest):
                         "messages": {
                             "$each": [
                                 {"role": "user", "content": request.message, "timestamp": datetime.utcnow()},
-                                {"role": "assistant", "content": ai_response, "timestamp": datetime.utcnow()}
+                                {"role": "assistant", "content": ai_response, "feedback": feedback, "timestamp": datetime.utcnow()}
                             ]
                         }
                     },
@@ -63,3 +64,44 @@ async def get_interview_modes():
             {"id": "system_design", "label": "System Design", "description": "Architecture, scalability, design patterns"}
         ]
     }
+
+
+@router.get("/opening")
+async def get_opening(mode: str, difficulty: str = "medium"):
+    """Fetch dynamic opening message with randomized first question."""
+    try:
+        from services.ai_service import get_random_opening_message, InterviewMode
+        # Map string to InterviewMode
+        mode_enum = InterviewMode(mode)
+        opening_text = get_random_opening_message(mode_enum, difficulty)
+        return {"opening_text": opening_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate opening: {str(e)}")
+
+
+@router.get("/hint")
+async def get_hint(mode: str, question: str):
+    """Fetch hint for the current question."""
+    try:
+        from services.ai_service import DSA_QUESTIONS, HR_QUESTIONS, SYSTEM_QUESTIONS, DSA_HINTS, HR_HINTS, SYSTEM_HINTS
+        q_clean = question.lower().strip()
+        
+        if mode == "dsa":
+            for i, (_, q_text) in enumerate(DSA_QUESTIONS):
+                q_db = q_text.lower()
+                if q_db[:25] in q_clean or q_clean[:25] in q_db:
+                    return {"hint": DSA_HINTS.get(i, "Try to explain your thought process step-by-step.")}
+        elif mode == "hr":
+            for i, q_text in enumerate(HR_QUESTIONS):
+                q_db = q_text.lower()
+                if q_db[:25] in q_clean or q_clean[:25] in q_db:
+                    return {"hint": HR_HINTS.get(i, "Focus on a concrete STAR example (Situation, Task, Action, Result) from your past.")}
+        else:
+            for i, q_text in enumerate(SYSTEM_QUESTIONS):
+                q_db = q_text.lower()
+                if q_db[:25] in q_clean or q_clean[:25] in q_db:
+                    return {"hint": SYSTEM_HINTS.get(i, "Address the requirements, choose appropriate databases, and outline scaling components.")}
+                    
+        return {"hint": "Think step-by-step and focus on technical details."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get hint: {str(e)}")

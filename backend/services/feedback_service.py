@@ -2,9 +2,31 @@ from models.schemas import InterviewMode
 import re
 
 
+def _is_skip_or_dont_know(text: str) -> bool:
+    msg = text.lower().strip()
+    phrases = [
+        "next question", "next", "skip", "pass", "move on", "another question", "ask something else",
+        "don't know", "dont know", "no idea", "not sure", "i don't know", "i dont know", "no clue",
+        "idk", "haven't studied", "have no idea", "no experience"
+    ]
+    return any(p in msg for p in phrases) or msg == "next"
+
+
 async def analyze_response(user_message: str, ai_response: str, mode: InterviewMode) -> dict:
     """Analyze user response quality and return a feedback score."""
-    if not user_message or len(user_message.strip()) < 10:
+    if not user_message:
+        return None
+
+    if _is_skip_or_dont_know(user_message):
+        return {
+            "technical_accuracy": 0.0,
+            "communication_clarity": 0.0,
+            "confidence_level": 0.0,
+            "overall_score": 0.0,
+            "suggestions": ["You skipped this question or did not know the answer. Try to attempt the next question!"]
+        }
+
+    if len(user_message.strip()) < 10:
         return None
 
     scores = _compute_scores(user_message, mode)

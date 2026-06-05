@@ -28,9 +28,9 @@ async def _edge_tts(text: str) -> bytes:
     import edge_tts
 
     clean = _clean_for_speech(text)
-    voice = "en-US-AriaNeural"
+    voice = "en-US-JennyNeural"
 
-    communicate = edge_tts.Communicate(clean, voice=voice, rate="+5%", pitch="+0Hz")
+    communicate = edge_tts.Communicate(clean, voice=voice, rate="+0%", pitch="+0Hz")
 
     buf = io.BytesIO()
     async for chunk in communicate.stream():

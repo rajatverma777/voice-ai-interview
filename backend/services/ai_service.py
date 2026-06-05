@@ -157,13 +157,14 @@ async def generate_response(
     message: str,
     history: Optional[List[Message]] = None,
     mode: InterviewMode = InterviewMode.DSA,
+    difficulty: str = "medium",
 ) -> str:
     if settings.ai_provider == "gemini" and settings.gemini_api_key:
         return await _gemini_response(message, history, mode)
     elif settings.openai_api_key:
         return await _openai_response(message, history, mode)
     else:
-        return _demo_response(message, history or [], mode)
+        return _demo_response(message, history or [], mode, difficulty)
 
 # ── OpenAI ────────────────────────────────────────────────────────────────────
 
@@ -246,86 +247,326 @@ def _find_last_question(history: List[Message]) -> tuple:
     return None, None
 
 
-# ── Demo DSA ──────────────────────────────────────────────────────────────────
+# ── Helper functions for Demo Mode ──
 
-def _demo_dsa(message: str, history: List[Message]) -> str:
-    import random
+def _is_skip(message: str) -> bool:
+    msg = message.lower().strip()
+    skip_phrases = ["next question", "next", "skip", "pass", "move on", "another question", "ask something else"]
+    return any(p in msg for p in skip_phrases) or msg == "next"
 
-    last_idx, last_topic = _find_last_question(history)
+def _is_dont_know(message: str) -> bool:
+    msg = message.lower().strip()
+    dont_know_phrases = ["don't know", "dont know", "no idea", "not sure", "i don't know", "i dont know", "no clue", "idk", "haven't studied", "have no idea", "no experience"]
+    return any(p in msg for p in dont_know_phrases)
 
-    # First reply (no question tracked yet) — treat as answering Q0
-    if last_topic is None:
-        last_idx  = 0
-        last_topic = DSA_QUESTIONS[0][0]  # "complexity"
+def _last_was_wrong_feedback(history: List[Message]) -> bool:
+    for msg in reversed(history):
+        if msg.role == "assistant":
+            content = msg.content.lower()
+            wrong_indicators = [
+                "that's not right", "that's not correct", "that's not accurate", 
+                "not quite", "that answer is too vague", "that answer doesn't demonstrate",
+                "your answer needs more detail", "your answer lacks"
+            ]
+            return any(ind in content for ind in wrong_indicators)
+    return False
 
-    quality = _get_quality(message, last_topic)
+DSA_EXPLANATIONS = {
+    "complexity": "Binary search requires a sorted array and operates in O(log n) time by halving the search space at each step.",
+    "arrays": "Standard arrays have a fixed size. Dynamic arrays resize automatically (usually doubling capacity) when full, which takes O(n) for copying but O(1) amortized for insertions.",
+    "hashing": "Hash maps map keys to bucket indices using a hash function. Collisions (when multiple keys map to the same bucket) are resolved using chaining (linked lists) or open addressing (probing).",
+    "linked_list": "Cycles in a singly linked list can be detected using Floyd's cycle detection algorithm (slow and fast pointers) in O(n) time and O(1) space.",
+    "trees": "A binary search tree (BST) is a binary tree where for every node, the left subtree contains smaller values and the right subtree contains larger values.",
+    "sorting": "Merge sort is an O(n log n) divide-and-conquer stable sorting algorithm that requires O(n) extra memory. Quicksort is in-place but has a worst-case O(n²) time.",
+    "dp": "Dynamic programming solves problems with overlapping subproblems and optimal substructure by caching solutions using memoization (top-down) or tabulation (bottom-up).",
+    "graphs": "BFS explores neighbor nodes level-by-level (using a queue, great for shortest paths), whereas DFS explores as deep as possible along each branch (using a stack/recursion).",
+    "stacks": "A stack is a LIFO structure. We can check bracket balance by pushing open brackets onto the stack and popping them when matching closing brackets are encountered.",
+    "heaps": "A min-heap is a complete binary tree where parent nodes are smaller than their children. Insertion and deletion take O(log n) time by bubbling elements.",
+}
 
-    if quality == "wrong":
-        return WRONG_RESPONSE.get(last_topic,
-            "That's not correct. Think carefully about the core concept and try again. What do you know about this topic?")
+# Difficulty Mappings
+DSA_DIFFICULTY = {
+    0: "easy", 1: "easy", 2: "medium", 3: "medium", 4: "easy",
+    5: "medium", 6: "medium", 7: "hard", 8: "hard", 9: "easy",
+    10: "hard", 11: "medium", 12: "medium", 13: "medium",
+    14: "hard", 15: "hard", 16: "hard", 17: "hard", 18: "hard", 19: "hard"
+}
 
-    if quality == "partial":
-        return PARTIAL_RESPONSE.get(last_topic,
-            "You're partially right but your answer is incomplete. What are you missing? Try to be more specific.")
+HR_DIFFICULTY = {
+    0: "medium", 1: "hard", 2: "hard", 3: "easy", 4: "easy",
+    5: "hard", 6: "medium", 7: "medium", 8: "medium", 9: "easy"
+}
 
-    # Correct — find all indices asked so far and pick the next one
+SYSTEM_DIFFICULTY = {
+    0: "easy", 1: "hard", 2: "medium", 3: "hard", 4: "easy",
+    5: "hard", 6: "hard", 7: "medium", 8: "hard", 9: "medium"
+}
+
+# Hint Mappings
+DSA_HINTS = {
+    0: "Think about how many times you can divide a list of size N in half. What condition must the array satisfy?",
+    1: "Consider memory layout. Do standard arrays change size? How does a dynamic array resize under the hood?",
+    2: "Think about the hash index formula. What if two keys map to the same bucket?",
+    3: "Think of two runners (slow and fast pointers) on a circular track. Will they meet?",
+    4: "For any node with value X, where do values smaller than X and larger than X go?",
+    5: "In-order traversal visits: Left subtree, then Root, then Right subtree. What order does that give for a BST?",
+    6: "Merge sort divides the array in half recursively, sorts them, and merges them. What is the space needed to merge?",
+    7: "Memoization caches results of recursive calls (top-down). Tabulation fills a table iteratively (bottom-up).",
+    8: "BFS uses a queue and visits neighbors level-by-level (great for shortest path). DFS goes deep along a branch first.",
+    9: "Push opening brackets onto a stack. When you see a closing one, pop and check if it matches the opening one.",
+    10: "A min-heap is a complete binary tree where parent is always smaller than children. Insertion involves bubble-up.",
+    11: "Can you use a hash map to store elements you've seen and look up the complement (target - current)?",
+    12: "You can solve it using recursion (slow), memoization (fast), or a simple iterative loop (O(1) space).",
+    13: "The height is 1 + the maximum of the heights of the left and right subtrees. Try a recursive approach.",
+    14: "Topological sort is an ordering of vertices in a directed acyclic graph where edge U -> V means U comes before V.",
+    15: "Quicksort partitions in-place around a pivot. In practice, CPU caching makes in-place swaps faster than copying.",
+    16: "Keep two pointers representing the window boundaries. Expand the right pointer and contract the left pointer as needed.",
+    17: "Use three pointers: prev, curr, and next. Update curr.next to point to prev as you traverse the list.",
+    18: "Load factor is number of elements divided by number of buckets. A high load factor means more collisions.",
+    19: "For N=1,000,000, N² is 1 trillion operations, while N log N is roughly 20 million operations."
+}
+
+HR_HINTS = {
+    0: "Use the STAR method. Focus on your specific role, technical decisions, and what was achieved.",
+    1: "Explain how you focused on the problem rather than the person, listened actively, and found a compromise.",
+    2: "Own the mistake, describe how you communicated it early, and what steps you took to mitigate the damage.",
+    3: "Talk about Eisenhower matrix or priority queues. How do you assess impact vs urgency?",
+    4: "Explain your learning strategy: reading docs, writing prototype code, and asking experts.",
+    5: "Focus on how you presented data to support your view, but ultimately committed to the team decision.",
+    6: "Choose a real technical weakness but show how you are actively addressing it (e.g. taking a course, contributing to projects).",
+    7: "Avoid jargon. Use analogies (e.g., comparing a database to a library index).",
+    8: "Mention how you noticed a gap in documentation, tool, or process and took the initiative to fix it.",
+    9: "Mention technical growth (e.g. senior role, architectural design) and how this company helps you get there."
+}
+
+SYSTEM_HINTS = {
+    0: "Consider write vs read load, ACID requirements (SQL), and schema flexibility or scale (NoSQL).",
+    1: "Think about load balancers, database sharding, microservices, and auto-scaling groups.",
+    2: "You can cache DB queries or compiled pages using Redis/Memcached. Use LRU (Least Recently Used) eviction.",
+    3: "Consider multi-region deployment, database replicas, automatic failovers, and rate limiting.",
+    4: "REST is simple and resource-oriented. GraphQL allows clients to request exactly the fields they need, avoiding over-fetching.",
+    5: "CAP states you can only guarantee 2 of: Consistency, Availability, Partition Tolerance. In a distributed network, partitions are inevitable.",
+    6: "Use CDN caching, auto-scaling, queueing (RabbitMQ/Kafka) to buffer requests, and rate-limiting to protect backend services.",
+    7: "Track API latency (p99), system CPU/memory load, and error rates (5xx status codes).",
+    8: "Consider distributed transactions (Saga pattern), eventual consistency, and message queues for event-driven updates.",
+    9: "Explain JWT tokens, OAuth2 providers, sessions, and role-based access control (RBAC)."
+}
+
+def _find_last_hr_question(history: List[Message]) -> Optional[int]:
+    for msg in reversed(history):
+        if msg.role != "assistant":
+            continue
+        content_lower = msg.content.lower()
+        for i, q in enumerate(HR_QUESTIONS):
+            if q[:35].lower() in content_lower:
+                return i
+    return None
+
+def _find_last_system_question(history: List[Message]) -> Optional[int]:
+    for msg in reversed(history):
+        if msg.role != "assistant":
+            continue
+        content_lower = msg.content.lower()
+        for i, q in enumerate(SYSTEM_QUESTIONS):
+            if q[:35].lower() in content_lower:
+                return i
+    return None
+
+def _get_next_dsa_question(history: List[Message], current_idx: int, difficulty: str = "medium") -> str:
     asked = set()
     for msg in history:
         if msg.role == "assistant":
             for i, (_, q_text) in enumerate(DSA_QUESTIONS):
                 if q_text[:45].lower() in msg.content.lower():
                     asked.add(i)
-    asked.add(last_idx)
-
-    available = [i for i in range(len(DSA_QUESTIONS)) if i not in asked]
+    asked.add(current_idx)
+    
+    # Filter by difficulty
+    available = [i for i in range(len(DSA_QUESTIONS)) if i not in asked and DSA_DIFFICULTY.get(i) == difficulty]
     if not available:
-        return f"{random.choice(CORRECT_PRAISE)} You've answered all my questions. **Outstanding session — you showed solid DSA knowledge throughout!**"
-
+        # Fallback to any remaining questions regardless of difficulty if current difficulty completed
+        available = [i for i in range(len(DSA_QUESTIONS)) if i not in asked]
+        if not available:
+            return "You've answered all my questions. **Outstanding session — you showed solid DSA knowledge throughout!**"
+            
     next_i = available[0]
     _, next_q = DSA_QUESTIONS[next_i]
+    return next_q
+
+# ── Random Opening Message Generator ──
+
+def get_random_opening_message(mode: InterviewMode, difficulty: str = "medium") -> str:
+    import random
+    
+    if mode == InterviewMode.DSA:
+        available_indices = [i for i, diff in DSA_DIFFICULTY.items() if diff == difficulty]
+        if not available_indices:
+            available_indices = list(DSA_DIFFICULTY.keys())
+        idx = random.choice(available_indices)
+        q = DSA_QUESTIONS[idx][1]
+        prefix = f"Hello! I'm your AI technical interviewer. We'll focus on **Data Structures & Algorithms** (Difficulty: **{difficulty.capitalize()}**). Let's begin — "
+        return f"{prefix}**{q}**"
+        
+    elif mode == InterviewMode.HR:
+        available_indices = [i for i, diff in HR_DIFFICULTY.items() if diff == difficulty]
+        if not available_indices:
+            available_indices = list(HR_DIFFICULTY.keys())
+        idx = random.choice(available_indices)
+        q = HR_QUESTIONS[idx]
+        prefix = f"Welcome! I'm your behavioral interviewer. Let's start (Difficulty: **{difficulty.capitalize()}**). "
+        return f"{prefix}**{q}**"
+        
+    else:
+        available_indices = [i for i, diff in SYSTEM_DIFFICULTY.items() if diff == difficulty]
+        if not available_indices:
+            available_indices = list(SYSTEM_DIFFICULTY.keys())
+        idx = random.choice(available_indices)
+        q = SYSTEM_QUESTIONS[idx]
+        prefix = f"Hi! Today we'll work through a system design problem (Difficulty: **{difficulty.capitalize()}**). "
+        return f"{prefix}**{q}**"
+
+
+# ── Demo DSA ──────────────────────────────────────────────────────────────────
+
+def _demo_dsa(message: str, history: List[Message], difficulty: str = "medium") -> str:
+    import random
+
+    last_idx, last_topic = _find_last_question(history)
+    if last_topic is None:
+        last_idx  = 0
+        last_topic = DSA_QUESTIONS[0][0]  # "complexity"
+
+    # Check for skip or don't know
+    if _is_skip(message):
+        next_q = _get_next_dsa_question(history, last_idx, difficulty)
+        return f"Alright, let's move on. Next — **{next_q}**"
+        
+    if _is_dont_know(message):
+        explanation = DSA_EXPLANATIONS.get(last_topic, "Binary search requires a sorted array and works by halving the search space each step.")
+        next_q = _get_next_dsa_question(history, last_idx, difficulty)
+        return f"No problem! Here is a quick explanation: {explanation}\n\nNext — **{next_q}**"
+
+    quality = _get_quality(message, last_topic)
+
+    if quality == "wrong":
+        if _last_was_wrong_feedback(history):
+            # Already got it wrong once, move on
+            explanation = DSA_EXPLANATIONS.get(last_topic, "")
+            next_q = _get_next_dsa_question(history, last_idx, difficulty)
+            return f"Let's move on to the next topic. (Note: {explanation})\n\nNext — **{next_q}**"
+        else:
+            return WRONG_RESPONSE.get(last_topic,
+                "That's not correct. Think carefully about the core concept and try again. What do you know about this topic?")
+
+    if quality == "partial":
+        if _last_was_wrong_feedback(history):
+            # Already got partial/wrong feedback once, move on
+            next_q = _get_next_dsa_question(history, last_idx, difficulty)
+            return f"Let's move on. Next — **{next_q}**"
+        else:
+            return PARTIAL_RESPONSE.get(last_topic,
+                "You're partially right but your answer is incomplete. What are you missing? Try to be more specific.")
+
+    # Correct -> get next question
+    next_q = _get_next_dsa_question(history, last_idx, difficulty)
+    if "answered all my questions" in next_q:
+        return f"{random.choice(CORRECT_PRAISE)} {next_q}"
     return f"{random.choice(CORRECT_PRAISE)} Next — **{next_q}**"
 
 
 # ── Demo HR ───────────────────────────────────────────────────────────────────
 
-def _demo_hr(message: str, history: List[Message]) -> str:
+def _demo_hr(message: str, history: List[Message], difficulty: str = "medium") -> str:
     import random
 
-    asked = set()
-    for msg in history:
-        if msg.role == "assistant":
-            for q in HR_QUESTIONS:
-                if q[:35].lower() in msg.content.lower():
-                    asked.add(q)
+    last_idx = _find_last_hr_question(history)
+    if last_idx is None:
+        last_idx = 0
+
+    # Helper to get next HR question
+    def _get_next_hr_question(hist, current_i):
+        asked = set()
+        for msg in hist:
+            if msg.role == "assistant":
+                for i, q in enumerate(HR_QUESTIONS):
+                    if q[:35].lower() in msg.content.lower():
+                        asked.add(i)
+        asked.add(current_i)
+        
+        # Filter by difficulty
+        available = [i for i in range(len(HR_QUESTIONS)) if i not in asked and HR_DIFFICULTY.get(i) == difficulty]
+        if not available:
+            available = [i for i in range(len(HR_QUESTIONS)) if i not in asked]
+            if not available:
+                return "That wraps up our behavioral round. **Well done — you showed strong communication throughout.**"
+                
+        return HR_QUESTIONS[available[0]]
+
+    # Check for skip or don't know
+    if _is_skip(message) or _is_dont_know(message):
+        next_q = _get_next_hr_question(history, last_idx)
+        if "behavioral round" in next_q:
+            return f"Alright, let's wrap up. {next_q}"
+        return f"Sure, let's move to the next question. Next — **{next_q}**"
 
     word_count = len(message.split())
     msg_lower  = message.lower()
 
     VAGUE = ["don't know", "not sure", "nothing", "idk", "no experience", "never", "skip", "pass"]
     if any(p in msg_lower for p in VAGUE) or word_count < 10:
+        if _last_was_wrong_feedback(history):
+            next_q = _get_next_hr_question(history, last_idx)
+            return f"Let's move on. Next — **{next_q}**"
         return "That answer is too vague. I need a **specific real example** — describe the situation, what YOU did, and what the outcome was. Please try again."
 
     if word_count < 20:
+        if _last_was_wrong_feedback(history):
+            next_q = _get_next_hr_question(history, last_idx)
+            return f"Let's move on. Next — **{next_q}**"
         return "Your answer needs more detail. Use the **STAR method**: Situation, Task, Action, Result. Can you expand on what you actually did and what happened?"
 
     praise = random.choice(["Good example.", "Solid answer.", "Nice response."])
-    available = [q for q in HR_QUESTIONS if q not in asked]
-    if not available:
-        return f"{praise} That wraps up our behavioral round. **Well done — you showed strong communication throughout.**"
-    return f"{praise} Next — **{available[0]}**"
+    next_q = _get_next_hr_question(history, last_idx)
+    if "behavioral round" in next_q:
+        return f"{praise} {next_q}"
+    return f"{praise} Next — **{next_q}**"
 
 
 # ── Demo System Design ────────────────────────────────────────────────────────
 
-def _demo_system(message: str, history: List[Message]) -> str:
+def _demo_system(message: str, history: List[Message], difficulty: str = "medium") -> str:
     import random
 
-    asked = set()
-    for msg in history:
-        if msg.role == "assistant":
-            for q in SYSTEM_QUESTIONS:
-                if q[:35].lower() in msg.content.lower():
-                    asked.add(q)
+    last_idx = _find_last_system_question(history)
+    if last_idx is None:
+        last_idx = 0
+
+    # Helper to get next System Design question
+    def _get_next_system_question(hist, current_i):
+        asked = set()
+        for msg in hist:
+            if msg.role == "assistant":
+                for i, q in enumerate(SYSTEM_QUESTIONS):
+                    if q[:35].lower() in msg.content.lower():
+                        asked.add(i)
+        asked.add(current_i)
+        
+        # Filter by difficulty
+        available = [i for i in range(len(SYSTEM_QUESTIONS)) if i not in asked and SYSTEM_DIFFICULTY.get(i) == difficulty]
+        if not available:
+            available = [i for i in range(len(SYSTEM_QUESTIONS)) if i not in asked]
+            if not available:
+                return "We've covered the main areas. **Well done — strong architectural thinking throughout!**"
+        return SYSTEM_QUESTIONS[available[0]]
+
+    # Check for skip or don't know
+    if _is_skip(message):
+        next_q = _get_next_system_question(history, last_idx)
+        return f"Alright, let's try a different topic. Next — **{next_q}**"
+        
+    if _is_dont_know(message):
+        next_q = _get_next_system_question(history, last_idx)
+        return f"No problem. In system design, we consider trade-offs and scaling strategies. Let's move to the next area. Next — **{next_q}**"
 
     msg_lower = message.lower()
     word_count = len(message.split())
@@ -338,30 +579,39 @@ def _demo_system(message: str, history: List[Message]) -> str:
     ]
 
     if any(p in msg_lower for p in VAGUE) or word_count < 8:
+        if _last_was_wrong_feedback(history):
+            next_q = _get_next_system_question(history, last_idx)
+            return f"Let's move to the next design question. Next — **{next_q}**"
         return "That answer doesn't demonstrate system design knowledge. Name **specific technologies** and explain **why** you'd choose them. Please try again."
 
     keyword_hits = sum(1 for k in TECH_KEYWORDS if k in msg_lower)
     if keyword_hits == 0:
+        if _last_was_wrong_feedback(history):
+            next_q = _get_next_system_question(history, last_idx)
+            return f"Let's move on. Next — **{next_q}**"
         return "Your answer lacks technical specifics. In system design you need to mention concrete technologies (e.g. PostgreSQL, Redis, Nginx) and explain trade-offs. Try again with more depth."
     if keyword_hits < 2:
+        if _last_was_wrong_feedback(history):
+            next_q = _get_next_system_question(history, last_idx)
+            return f"Let's move on. Next — **{next_q}**"
         return f"You touched on one aspect, but system design needs to address multiple concerns. You mentioned 1 technical concept — can you also address **scalability and fault tolerance**?"
 
     praise = random.choice(["Good thinking.", "Solid approach.", "Reasonable choice."])
-    available = [q for q in SYSTEM_QUESTIONS if q not in asked]
-    if not available:
-        return f"{praise} We've covered the main areas. **Well done — strong architectural thinking throughout!**"
-    return f"{praise} Now — **{available[0]}**"
+    next_q = _get_next_system_question(history, last_idx)
+    if "covered the main areas" in next_q:
+        return f"{praise} {next_q}"
+    return f"{praise} Next — **{next_q}**"
 
 
 # ── Demo router ───────────────────────────────────────────────────────────────
 
-def _demo_response(message: str, history: List[Message], mode: InterviewMode) -> str:
+def _demo_response(message: str, history: List[Message], mode: InterviewMode, difficulty: str = "medium") -> str:
     if mode == InterviewMode.DSA:
-        return _demo_dsa(message, history)
+        return _demo_dsa(message, history, difficulty)
     elif mode == InterviewMode.HR:
-        return _demo_hr(message, history)
+        return _demo_hr(message, history, difficulty)
     else:
-        return _demo_system(message, history)
+        return _demo_system(message, history, difficulty)
 
 
 def get_opening_message(mode: InterviewMode) -> str:

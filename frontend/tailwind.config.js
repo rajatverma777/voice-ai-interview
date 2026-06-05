@@ -4,35 +4,35 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["'DM Sans'", "sans-serif"],
+        sans: ["'Inter'", "sans-serif"],
         mono: ["'JetBrains Mono'", "monospace"],
-        display: ["'Syne'", "sans-serif"],
+        display: ["'Outfit'", "sans-serif"],
       },
       colors: {
-        void: "#080c14",
-        surface: "#0f1622",
-        panel: "#141c2e",
-        border: "#1e2a3f",
-        accent: "#3b82f6",
-        "accent-glow": "#60a5fa",
-        teal: "#14b8a6",
-        "teal-glow": "#2dd4bf",
+        void: "#070a13",
+        surface: "#0c1122",
+        panel: "#121a30",
+        border: "#1e294b",
+        accent: "#00d2ff",
+        "accent-glow": "rgba(0, 210, 255, 0.25)",
+        teal: "#6366f1", // Map teal to premium indigo
+        "teal-glow": "rgba(99, 102, 241, 0.25)",
         text: {
-          primary: "#e2e8f0",
-          secondary: "#94a3b8",
-          muted: "#475569",
+          primary: "#f8fafc",
+          secondary: "#cbd5e1",
+          muted: "#64748b",
         },
       },
       animation: {
-        "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "spin-slow": "spin 3s linear infinite",
+        "pulse-slow": "pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "spin-slow": "spin 4s linear infinite",
         float: "float 6s ease-in-out infinite",
         "waveform": "waveform 1.2s ease-in-out infinite",
       },
       keyframes: {
         float: {
           "0%, 100%": { transform: "translateY(0px)" },
-          "50%": { transform: "translateY(-8px)" },
+          "50%": { transform: "translateY(-6px)" },
         },
         waveform: {
           "0%, 100%": { transform: "scaleY(0.3)" },
@@ -43,10 +43,10 @@ module.exports = {
         xs: "2px",
       },
       boxShadow: {
-        glow: "0 0 20px rgba(59, 130, 246, 0.3)",
-        "glow-teal": "0 0 20px rgba(20, 184, 166, 0.3)",
-        "glow-sm": "0 0 10px rgba(59, 130, 246, 0.2)",
-        glass: "0 8px 32px rgba(0, 0, 0, 0.4)",
+        glow: "0 0 25px rgba(0, 210, 255, 0.2)",
+        "glow-teal": "0 0 25px rgba(99, 102, 241, 0.2)",
+        "glow-sm": "0 0 12px rgba(0, 210, 255, 0.15)",
+        glass: "0 8px 32px rgba(0, 0, 0, 0.5)",
       },
     },
   },

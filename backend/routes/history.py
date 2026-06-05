@@ -37,7 +37,7 @@ async def list_sessions():
     """List all sessions (latest 20)."""
     try:
         db = get_db()
-        cursor = db.sessions.find({}, {"_id": 0, "session_id": 1, "mode": 1, "created_at": 1}).sort("created_at", -1).limit(20)
+        cursor = db.sessions.find({}, {"_id": 0}).sort("created_at", -1).limit(20)
         sessions = await cursor.to_list(length=20)
         return {"sessions": sessions}
     except Exception as e:

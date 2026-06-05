@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = "https://voice-ai-backend-yk1m.onrender.com";
+const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 const interval = 30000;
 
 function reloadWebsite() {
@@ -72,11 +72,12 @@ export const transcribeAudio = async (audioBlob) => {
 };
 
 // ── AI Chat ──────────────────────────────────────────────────────
-export const sendChatMessage = async ({ message, sessionId, mode, history }) => {
+export const sendChatMessage = async ({ message, sessionId, mode, difficulty, history }) => {
   const res = await api.post('/api/ai/chat', {
     message,
     session_id: sessionId,
     mode,
+    difficulty,
     history: history.map(m => ({ role: m.role, content: m.content })),
   });
   return res.data;
@@ -85,6 +86,16 @@ export const sendChatMessage = async ({ message, sessionId, mode, history }) => 
 export const getInterviewModes = async () => {
   const res = await api.get('/api/ai/modes');
   return res.data.modes;
+};
+
+export const getOpeningMessage = async (mode, difficulty) => {
+  const res = await api.get(`/api/ai/opening?mode=${mode}&difficulty=${difficulty}`);
+  return res.data.opening_text;
+};
+
+export const getQuestionHint = async (mode, question) => {
+  const res = await api.get(`/api/ai/hint?mode=${mode}&question=${encodeURIComponent(question)}`);
+  return res.data.hint;
 };
 
 // ── Text-to-Speech ───────────────────────────────────────────────
@@ -102,6 +113,11 @@ export const getHistory = async (sessionId) => {
 export const clearHistory = async (sessionId) => {
   const res = await api.delete(`/api/history/${sessionId}`);
   return res.data;
+};
+
+export const listSessions = async () => {
+  const res = await api.get('/api/history');
+  return res.data.sessions;
 };
 
 // ── Health Check ─────────────────────────────────────────────────

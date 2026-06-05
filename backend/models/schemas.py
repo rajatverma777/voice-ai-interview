@@ -39,6 +39,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str
     mode: InterviewMode = InterviewMode.DSA
+    difficulty: Optional[str] = "medium"
     history: Optional[List[Message]] = []
 
 
