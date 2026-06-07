@@ -1,9 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function AuthPage() {
-  const [mode, setMode]     = useState('login'); // 'login' | 'register'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const modeParam = searchParams.get('mode') || 'login';
+  const mode = modeParam === 'register' ? 'register' : 'login';
+  const setMode = (newMode) => setSearchParams({ mode: newMode });
+
   const [form, setForm]     = useState({ username: '', email: '', password: '' });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError]   = useState('');

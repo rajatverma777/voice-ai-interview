@@ -28,7 +28,10 @@ export default function Navbar() {
 
   const currentPath = useRef(location.pathname);
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, height: 0, opacity: 0 });
-  const activePath = hoveredPath || location.pathname;
+  const currentFullPath = location.pathname === '/auth'
+    ? (location.pathname + (location.search || '?mode=login'))
+    : location.pathname;
+  const activePath = hoveredPath || currentFullPath;
 
   // Track scroll direction and scroll position to auto fold/unfold navigation capsule
   useEffect(() => {
@@ -201,7 +204,7 @@ export default function Navbar() {
               Home
             </NavLink>
             
-            {isAuthenticated && (
+            {isAuthenticated ? (
               <>
                 <NavLink
                   to="/interview"
@@ -220,10 +223,29 @@ export default function Navbar() {
                   Profile
                 </NavLink>
               </>
+            ) : (
+              <>
+                <NavLink
+                  to="/auth?mode=login"
+                  active={activePath === '/auth?mode=login'}
+                  onMouseEnter={() => setHoveredPath('/auth?mode=login')}
+                  onMouseLeave={() => setHoveredPath(null)}
+                >
+                  Sign In
+                </NavLink>
+                <NavLink
+                  to="/auth?mode=register"
+                  active={activePath === '/auth?mode=register'}
+                  onMouseEnter={() => setHoveredPath('/auth?mode=register')}
+                  onMouseLeave={() => setHoveredPath(null)}
+                >
+                  Get Started
+                </NavLink>
+              </>
             )}
           </div>
 
-          {isAuthenticated ? (
+          {isAuthenticated && (
             /* User dropdown */
             <div id="user-menu" className="relative ml-1">
               <button
@@ -290,24 +312,6 @@ export default function Navbar() {
                 </div>
               )}
             </div>
-          ) : (
-            /* Guest buttons (hidden on Auth page itself to avoid redundancy) */
-            pathnameRef.current !== '/auth' && (
-              <div className="flex items-center gap-2 ml-1 font-mono text-xs">
-                <Link
-                  to="/auth"
-                  className="px-3 py-1.5 text-text-secondary hover:text-white btn-liquid"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/auth"
-                  className="px-4 py-1.5 font-bold text-void bg-accent hover:bg-accent/90 rounded-full btn-liquid shadow-glow hover:shadow-[0_0_20px_rgba(0,210,255,0.4)]"
-                >
-                  Get Started
-                </Link>
-              </div>
-            )
           )}
         </div>
 
