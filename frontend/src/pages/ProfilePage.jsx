@@ -519,18 +519,18 @@ export default function ProfilePage() {
 
       {/* ── iOS-STYLE SLIDING PROFILE EDIT SHEET ── */}
       {editModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-void/80 backdrop-blur-md animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-void/40 backdrop-blur-[6px] animate-fade-in">
           {/* Modal Card */}
-          <div className="glass-premium max-w-md w-full rounded-3xl border border-accent/20 p-6 md:p-8 shadow-2xl relative animate-scale-in flex flex-col space-y-6">
+          <div className="max-w-md w-full bg-[#08080a]/35 backdrop-blur-[12px] rounded-3xl border border-accent/30 p-6 md:p-8 shadow-glow relative animate-scale-in flex flex-col space-y-6 text-white">
             
             {/* Header */}
-            <div className="flex justify-between items-center pb-2 border-b border-border/60">
-              <h3 className="text-lg font-display font-bold text-white tracking-tight uppercase flex items-center gap-2">
-                <span>⚙️</span> Edit Profile Details
+            <div className="flex justify-between items-center pb-3 border-b border-white/[0.06] mb-1">
+              <h3 className="text-base font-display font-black text-white tracking-wider uppercase flex items-center gap-2">
+                <span className="text-accent">⚙_</span> Edit Profile Details
               </h3>
               <button
                 onClick={() => setEditModalOpen(false)}
-                className="w-8 h-8 rounded-full border border-border/80 hover:border-red-500/40 text-text-muted hover:text-red-400 hover:bg-red-500/5 flex items-center justify-center btn-liquid text-sm"
+                className="w-8 h-8 rounded-full border border-white/[0.08] hover:border-red-500/40 text-text-muted hover:text-red-400 hover:bg-red-500/5 flex items-center justify-center transition-all duration-300 text-sm"
               >
                 ✕
               </button>
@@ -538,23 +538,26 @@ export default function ProfilePage() {
 
             {/* Error Message */}
             {editError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs font-mono">
+              <div className="p-3 bg-red-500/10 border border-red-500/25 text-red-400 rounded-xl text-xs font-mono">
                 {editError}
               </div>
             )}
 
             {/* Avatar Selection & Upload */}
             <div className="flex flex-col items-center gap-4">
-              <div className="relative group">
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-accent to-teal blur-md opacity-40 group-hover:opacity-75 transition-opacity" />
+              <div className="relative group z-10">
+                {/* pulsing backdrop glow rings */}
+                <div className="absolute -inset-1.5 rounded-2xl bg-gradient-to-tr from-accent to-teal opacity-20 group-hover:opacity-60 blur-[2px] transition-all duration-500" />
+                <div className="absolute -inset-3 rounded-2xl bg-gradient-to-tr from-accent/30 to-teal/30 opacity-0 group-hover:opacity-25 blur-[6px] group-hover:scale-105 transition-all duration-500 animate-pulse" />
+                
                 {editPhoto ? (
                   <img
                     src={editPhoto}
                     alt="Preview"
-                    className="w-24 h-24 rounded-2xl object-cover border border-accent/40 relative z-10"
+                    className="w-24 h-24 rounded-2xl object-cover border border-accent/40 relative z-10 group-hover:border-accent/60 transition-colors duration-500"
                   />
                 ) : (
-                  <div className="w-24 h-24 rounded-2xl bg-void border border-accent/40 flex items-center justify-center text-3xl font-display font-bold text-accent shadow-inner relative z-10">
+                  <div className="w-24 h-24 rounded-2xl bg-void/30 border border-accent/40 flex items-center justify-center text-3xl font-display font-bold text-accent shadow-inner relative z-10 group-hover:border-accent/60 transition-colors duration-500">
                     {editUsername ? editUsername.slice(0, 2).toUpperCase() : '?'}
                   </div>
                 )}
@@ -572,7 +575,7 @@ export default function ProfilePage() {
 
               {/* Upload Input */}
               <div className="flex flex-col items-center gap-2 w-full">
-                <label className="px-4 py-2 rounded-xl border border-border/80 bg-void/50 hover:border-accent/40 text-text-secondary hover:text-white cursor-pointer btn-liquid font-mono text-xs text-center w-full">
+                <label className="px-4 py-2.5 rounded-2xl border border-white/[0.08] bg-void/10 hover:border-accent/40 hover:bg-accent/5 text-text-secondary hover:text-accent cursor-pointer btn-liquid font-mono text-xs text-center w-full transition-all duration-300">
                   <span>📷 Upload Custom Profile Photo</span>
                   <input
                     type="file"
@@ -594,31 +597,31 @@ export default function ProfilePage() {
                     }}
                   />
                 </label>
-                <span className="text-[10px] text-text-muted font-mono uppercase">Supports PNG, JPG (Max 2MB)</span>
+                <span className="text-[9px] text-text-muted font-mono tracking-wider uppercase">Supports PNG, JPG (Max 2MB)</span>
               </div>
             </div>
 
             {/* Fields Form */}
             <div className="space-y-4">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 text-left">
                 <label className="text-[9px] font-mono font-bold uppercase tracking-widest text-text-muted">Username</label>
                 <input
                   type="text"
                   value={editUsername}
                   onChange={(e) => setEditUsername(e.target.value)}
                   placeholder="Enter name"
-                  className="w-full px-4 py-3 bg-void/45 border border-border/80 rounded-xl focus:border-accent/60 outline-none text-white text-sm font-sans transition-colors"
+                  className="w-full px-4 py-3 bg-void/10 border border-white/[0.06] rounded-2xl focus:border-accent/60 focus:shadow-[0_0_15px_rgba(0,210,255,0.15)] outline-none text-white text-sm font-sans transition-all duration-300 hover:border-accent/30"
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 text-left">
                 <label className="text-[9px] font-mono font-bold uppercase tracking-widest text-text-muted">Email Address</label>
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   placeholder="Enter email"
-                  className="w-full px-4 py-3 bg-void/45 border border-border/80 rounded-xl focus:border-accent/60 outline-none text-white text-sm font-sans transition-colors"
+                  className="w-full px-4 py-3 bg-void/10 border border-white/[0.06] rounded-2xl focus:border-accent/60 focus:shadow-[0_0_15px_rgba(0,210,255,0.15)] outline-none text-white text-sm font-sans transition-all duration-300 hover:border-accent/30"
                 />
               </div>
             </div>
@@ -628,7 +631,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={() => setEditModalOpen(false)}
-                className="flex-1 py-3 text-xs font-semibold rounded-xl border border-border/80 hover:border-red-500/40 text-text-secondary hover:text-red-400 font-mono uppercase btn-liquid"
+                className="flex-1 py-3 text-xs font-bold rounded-2xl border border-red-500/20 bg-void/10 hover:bg-red-500/10 hover:border-red-500/50 text-red-400/95 hover:text-red-300 font-mono uppercase hover:shadow-[0_0_15px_rgba(239,68,68,0.12)] transition-all duration-300"
               >
                 Cancel
               </button>
@@ -656,11 +659,11 @@ export default function ProfilePage() {
                     setSavingProfile(false);
                   }
                 }}
-                className="flex-1 py-3 text-xs font-semibold rounded-xl bg-accent text-void font-bold font-mono uppercase hover:bg-accent/90 btn-liquid flex items-center justify-center gap-2"
+                className="flex-1 py-3 text-xs font-bold rounded-2xl border border-accent/40 bg-accent/10 hover:bg-accent/20 hover:border-accent/80 text-accent hover:text-white font-mono uppercase transition-all duration-300 shadow-[0_0_15px_rgba(0,210,255,0.12)] hover:shadow-[0_0_25px_rgba(0,210,255,0.25)] disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {savingProfile ? (
                   <>
-                    <div className="w-3.5 h-3.5 border-2 border-void/30 border-t-void rounded-full animate-spin" />
+                    <div className="w-3.5 h-3.5 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
                     <span>Saving...</span>
                   </>
                 ) : (
