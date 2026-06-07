@@ -22,10 +22,10 @@ export default function ChatBubble({ message, playAudio }) {
 
       <div className={`flex flex-col gap-1.5 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
         {/* Chat Bubble Box */}
-        <div className={`rounded-2xl px-4 py-3 text-xs leading-relaxed transition-all font-sans ${
+        <div className={`rounded-2xl px-4 py-3 text-xs leading-relaxed font-sans card-liquid ${
           isUser
-            ? 'bg-accent/[0.04] border border-accent/30 text-white rounded-tr-none shadow-glass'
-            : 'bg-void/45 border border-border/80 text-text-secondary rounded-tl-none shadow-glass'
+            ? 'bg-accent/[0.04] border border-accent/30 text-white rounded-tr-none shadow-glass hover:bg-accent/[0.08] hover:border-accent/50 hover:shadow-[0_0_20px_rgba(0,210,255,0.08)]'
+            : 'bg-void/45 border border-border/80 text-text-secondary rounded-tl-none shadow-glass hover:bg-void/60 hover:border-border hover:shadow-[0_0_20px_rgba(99,102,241,0.05)]'
         }`}>
           <FormattedText text={content} />
         </div>

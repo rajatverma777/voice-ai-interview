@@ -4,89 +4,155 @@ import { useAuth } from '../context/AuthContext';
 import { listSessions, clearHistory } from '../services/api';
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState(() => {
+    const cached = localStorage.getItem('vai_cached_sessions');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    return !localStorage.getItem('vai_cached_sessions');
+  });
   const [error, setError] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(10);
 
-  const fetchHistory = async () => {
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhoto, setEditPhoto] = useState('');
+  const [editError, setEditError] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const handleOpenEditModal = () => {
+    setEditUsername(user?.username || '');
+    setEditEmail(user?.email || '');
+    setEditPhoto(user?.profile_photo || '');
+    setEditError('');
+    setEditModalOpen(true);
+  };
+
+  const fetchHistory = React.useCallback(async (showLoading = false, signal = null) => {
     try {
-      setLoading(true);
-      const list = await listSessions();
-      setSessions(list || []);
+      if (showLoading) setLoading(true);
+      const list = await listSessions({ signal });
+      const newList = list || [];
+      setSessions(newList);
+
+      // ─── CRITICAL PERF FIX ────────────────────────────────────────────
+      // localStorage.setItem is SYNCHRONOUS and blocks the main thread.
+      // Writing full session message histories (potentially 500KB+ of JSON)
+      // was causing 2-3 second UI freezes every time the user navigated away.
+      //
+      // Fix: immediately store only lightweight metadata (no messages) so the
+      // cache still works for fast page loads. Then defer the heavy per-session
+      // full-message writes to requestIdleCallback so they never block the UI.
+      // ─────────────────────────────────────────────────────────────────────
+
+      // Step 1: Fast write — minimal metadata only (instant, no blocking)
+      const minimalList = newList.map(({ session_id, mode, created_at }) => ({
+        session_id, mode, created_at,
+      }));
+      try { localStorage.setItem('vai_cached_sessions', JSON.stringify(minimalList)); } catch (_) {}
+
+      // Step 2: Defer expensive per-session message caching to idle time
+      const cacheSessionMessages = () => {
+        newList.forEach(sess => {
+          if (sess.session_id && sess.messages) {
+            try {
+              localStorage.setItem(
+                `vai_session_cache_${sess.session_id}`,
+                JSON.stringify({ messages: sess.messages })
+              );
+            } catch (_) {}
+          }
+        });
+      };
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(cacheSessionMessages, { timeout: 4000 });
+      } else {
+        setTimeout(cacheSessionMessages, 500);
+      }
     } catch (err) {
-      console.error(err);
-      setError('Database telemetry link offline.');
+      if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+        console.error(err);
+        setError('Database telemetry link offline.');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
 
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    const controller = new AbortController();
+    fetchHistory(false, controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [fetchHistory]);
 
   const handleDeleteSession = async (e, sessionId) => {
     e.stopPropagation();
     if (!window.confirm("Purge session log permanently? This record cannot be recovered.")) return;
     try {
       await clearHistory(sessionId);
-      fetchHistory();
+      localStorage.removeItem(`vai_session_cache_${sessionId}`);
+      fetchHistory(true);
     } catch (err) {
       console.error(err);
       setError('Failed to purge session record.');
     }
   };
 
-  // Compile statistics
-  let totalExchanges = 0;
-  let avgTech = 0, avgClarity = 0, avgConf = 0, avgOverall = 0;
-  let techCount = 0, clarityCount = 0, confCount = 0, overallCount = 0;
-  const suggestions = [];
+  // Stats are shown as N/A now since messages aren't included in the sessions list.
+  // They will be populated if sessions have summary fields from the backend.
+  const { stats, suggestions, totalExchanges } = React.useMemo(() => {
+    let exchanges = 0;
+    let avgTech = 0, avgClarity = 0, avgConf = 0, avgOverall = 0;
+    let techCount = 0, clarityCount = 0, confCount = 0, overallCount = 0;
+    const suggs = [];
 
-  sessions.forEach(sess => {
-    if (sess.messages) {
-      sess.messages.forEach(m => {
-        if (m.role === 'user') {
-          totalExchanges++;
-        }
-        if (m.role === 'assistant' && m.feedback) {
-          const fb = m.feedback;
-          if (fb.technical_accuracy !== undefined && fb.technical_accuracy !== null) {
-            avgTech += fb.technical_accuracy;
-            techCount++;
+    sessions.forEach(sess => {
+      // Support both full message-based sessions (cached) and metadata-only sessions (from list API)
+      if (sess.messages) {
+        sess.messages.forEach(m => {
+          if (m.role === 'user') exchanges++;
+          if (m.role === 'assistant' && m.feedback) {
+            const fb = m.feedback;
+            if (fb.technical_accuracy != null) { avgTech += fb.technical_accuracy; techCount++; }
+            if (fb.communication_clarity != null) { avgClarity += fb.communication_clarity; clarityCount++; }
+            if (fb.confidence_level != null) { avgConf += fb.confidence_level; confCount++; }
+            if (fb.overall_score != null) { avgOverall += fb.overall_score; overallCount++; }
+            if (fb.suggestions) fb.suggestions.forEach(s => { if (s && !suggs.includes(s)) suggs.push(s); });
           }
-          if (fb.communication_clarity !== undefined && fb.communication_clarity !== null) {
-            avgClarity += fb.communication_clarity;
-            clarityCount++;
-          }
-          if (fb.confidence_level !== undefined && fb.confidence_level !== null) {
-            avgConf += fb.confidence_level;
-            confCount++;
-          }
-          if (fb.overall_score !== undefined && fb.overall_score !== null) {
-            avgOverall += fb.overall_score;
-            overallCount++;
-          }
-          if (fb.suggestions) {
-            fb.suggestions.forEach(s => {
-              if (s && !suggestions.includes(s)) {
-                suggestions.push(s);
-              }
-            });
-          }
-        }
-      });
-    }
-  });
+        });
+      }
+      // Support pre-aggregated score fields if present
+      if (sess.score_summary) {
+        const s = sess.score_summary;
+        if (s.overall != null) { avgOverall += s.overall; overallCount++; }
+      }
+      if (sess.message_count) exchanges += sess.message_count;
+    });
 
-  const stats = {
-    technical: techCount ? Math.round(avgTech / techCount) : 0,
-    clarity: clarityCount ? Math.round(avgClarity / clarityCount) : 0,
-    confidence: confCount ? Math.round(avgConf / confCount) : 0,
-    overall: overallCount ? Math.round(avgOverall / overallCount) : 0,
-  };
+    return {
+      totalExchanges: exchanges,
+      stats: {
+        technical: techCount ? Math.round(avgTech / techCount) : 0,
+        clarity: clarityCount ? Math.round(avgClarity / clarityCount) : 0,
+        confidence: confCount ? Math.round(avgConf / confCount) : 0,
+        overall: overallCount ? Math.round(avgOverall / overallCount) : 0,
+      },
+      suggestions: suggs
+    };
+  }, [sessions]);
 
   const getSessionScore = (sess) => {
     if (!sess.messages) return 0;
@@ -111,28 +177,45 @@ export default function ProfilePage() {
   const initials = user?.username ? user.username.slice(0, 2).toUpperCase() : '?';
 
   return (
-    <div className="pt-24 min-h-screen bg-void dot-grid relative overflow-hidden px-4 md:px-8 flex flex-col">
-      {/* Dynamic ambient backdrop light */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-teal/5 rounded-full blur-[180px] pointer-events-none pulse-glow" />
-      <div className="absolute bottom-10 left-10 w-[400px] h-[400px] bg-accent/3 rounded-full blur-[140px] pointer-events-none" />
+    <div className="pt-24 min-h-screen relative overflow-hidden px-4 md:px-8 flex flex-col">
 
       <div className="w-full max-w-[94%] xl:max-w-[1440px] mx-auto relative z-10 flex-1 flex flex-col space-y-8 pb-16">
         
-        {/* ── PROFILE HERO BANNER ── */}
-        <header className="glass rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass flex flex-col lg:flex-row items-center justify-between gap-6 relative overflow-hidden">
-          {/* Subtle gradient background slide */}
-          <div className="absolute inset-0 bg-gradient-to-r from-teal/5 via-transparent to-accent/5 pointer-events-none" />
+        {/* ── PROFILE HERO SECTION (SPLIT IN TWO PARTS) ── */}
+        <div className="flex flex-col lg:flex-row gap-6 w-full items-stretch">
           
-          <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left z-10">
+          {/* Part 1: User Profile Details (Clickable) */}
+          <div
+            onClick={handleOpenEditModal}
+            className="glass-profile card-liquid rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass flex-1 flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left relative overflow-hidden cursor-pointer group/profile"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-teal/5 via-transparent to-accent/5 pointer-events-none" />
+            
+            {/* Edit Indicator Badge */}
+            <div className="absolute top-4 right-4 z-10 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[8px] font-mono text-text-muted uppercase tracking-wider group-hover/profile:border-accent/40 group-hover/profile:text-accent transition-all duration-300">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+              <span>Edit Info</span>
+            </div>
+
             {/* Glowing Avatar */}
-            <div className="relative group">
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-accent to-teal blur-md opacity-40 group-hover:opacity-75 transition-opacity duration-300" />
-              <div className="w-20 h-20 rounded-2xl bg-void border border-accent/40 flex items-center justify-center text-2xl font-display font-bold text-accent shadow-inner relative z-10">
-                {initials}
-              </div>
+            <div className="relative group z-10">
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-accent to-teal blur-md opacity-40 group-hover/profile:opacity-75 transition-opacity duration-300" />
+              {user?.profile_photo ? (
+                <img
+                  src={user.profile_photo}
+                  alt={user?.username}
+                  className="w-20 h-20 rounded-2xl border border-accent/40 object-cover relative z-10"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-2xl bg-void border border-accent/40 flex items-center justify-center text-2xl font-display font-bold text-accent shadow-inner relative z-10">
+                  {initials}
+                </div>
+              )}
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-2 z-10">
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 <h1 className="text-2xl md:text-3xl font-display font-bold tracking-tight text-white uppercase">
                   {user?.username || 'Guest Pilot'}
@@ -146,19 +229,22 @@ export default function ProfilePage() {
               <p className="text-[10px] text-text-muted font-mono tracking-widest uppercase">OPERATOR ID: VAI-{user?.user_id?.slice(-6) || '8749'}</p>
             </div>
           </div>
-          
-          {/* Dashboard Quick Stats */}
-          <div className="flex flex-wrap gap-4 w-full lg:w-auto justify-center lg:justify-end z-10 font-mono">
-            <div className="px-6 py-4 bg-void/45 border border-border/85 rounded-2xl min-w-[140px] flex flex-col justify-between hover:border-teal/30 transition-colors">
+
+          {/* Part 2: Quick Stats Dashboard */}
+          <div className="glass-profile card-liquid rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass flex flex-row items-center gap-4 font-mono justify-center relative overflow-hidden lg:min-w-[340px]">
+            <div className="absolute inset-0 bg-gradient-to-l from-accent/5 via-transparent to-teal/5 pointer-events-none" />
+            
+            <div className="px-6 py-4 bg-void/45 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-teal/30 transition-colors z-10">
               <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold">Total Sessions</span>
               <span className="text-2xl font-display font-black text-white mt-1">{sessions.length}</span>
             </div>
-            <div className="px-6 py-4 bg-void/45 border border-border/85 rounded-2xl min-w-[140px] flex flex-col justify-between hover:border-accent/30 transition-colors">
+            <div className="px-6 py-4 bg-void/45 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-accent/30 transition-colors z-10">
               <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold">Audio Exchanges</span>
               <span className="text-2xl font-display font-black text-accent mt-1">{totalExchanges}</span>
             </div>
           </div>
-        </header>
+
+        </div>
 
         {error && (
           <div className="rounded-2xl bg-red-500/5 border border-red-500/25 px-5 py-4 text-xs text-red-400 font-mono flex items-center gap-2">
@@ -167,7 +253,7 @@ export default function ProfilePage() {
         )}
 
         {loading ? (
-          <div className="glass rounded-3xl p-20 text-center border border-border flex-1 flex flex-col justify-center items-center">
+          <div className="glass-profile rounded-3xl p-20 text-center border border-border flex-1 flex flex-col justify-center items-center">
             <div className="w-12 h-12 rounded-full border-2 border-accent/15 border-t-accent animate-spin mb-4" />
             <p className="text-text-secondary text-xs tracking-widest uppercase font-mono">Synchronizing Telemetry Records...</p>
           </div>
@@ -178,7 +264,7 @@ export default function ProfilePage() {
             <div className="lg:col-span-1 flex flex-col gap-8">
               
               {/* DIAGNOSTICS CARD */}
-              <div className="glass rounded-3xl p-6 border border-border/85 shadow-glass relative flex flex-col justify-between">
+              <div className="glass-profile card-liquid rounded-3xl p-6 border border-border/85 shadow-glass relative flex flex-col justify-between">
                 <div>
                   <h2 className="font-display text-sm font-bold text-white tracking-wide uppercase flex items-center gap-2 mb-6">
                     <span className="w-2 h-2 rounded-full bg-accent" />
@@ -233,7 +319,7 @@ export default function ProfilePage() {
               </div>
 
               {/* ACTIONABLE ADVICE CARD */}
-              <div className="glass rounded-3xl p-6 border border-border/85 shadow-glass flex-1 flex flex-col">
+              <div className="glass-profile card-liquid rounded-3xl p-6 border border-border/85 shadow-glass flex-1 flex flex-col">
                 <h2 className="font-display text-sm font-bold text-white tracking-wide uppercase flex items-center gap-2 mb-4">
                   <span className="w-2 h-2 rounded-full bg-teal" />
                   Coach Recommendations
@@ -258,15 +344,15 @@ export default function ProfilePage() {
 
             {/* ── RIGHT COLUMN: SESSION LOG ARCHIVES ── */}
             <div className="lg:col-span-2 flex flex-col">
-              <div className="glass rounded-3xl p-6 border border-border/85 shadow-glass flex-1 flex flex-col">
+              <div className="glass-profile rounded-3xl p-6 border border-border/85 shadow-glass flex-1 flex flex-col">
                 <h2 className="font-display text-sm font-bold text-white tracking-wide uppercase flex items-center gap-2 mb-6">
                   <span className="w-2 h-2 rounded-full bg-accent" />
                   Interview Archives
                 </h2>
                 
                 {sessions.length > 0 ? (
-                  <div className="space-y-3 overflow-y-auto pr-1.5 flex-1 scrollbar-thin">
-                    {sessions.map(sess => {
+                  <div className="space-y-3 overflow-y-auto p-3 -m-3 flex-1 scrollbar-thin">
+                    {sessions.slice(0, displayLimit).map(sess => {
                       const score = getSessionScore(sess);
                       const hasScore = score > 0;
                       const userMsgCount = sess.messages ? sess.messages.filter(m => m.role === 'user').length : 0;
@@ -275,7 +361,7 @@ export default function ProfilePage() {
                         <div
                           key={sess.session_id}
                           onClick={() => navigate(`/interview?session_id=${sess.session_id}&mode=${sess.mode}`)}
-                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-void/35 border border-border/40 hover:border-accent/40 rounded-2xl hover:bg-accent/[0.02] cursor-pointer transition-all duration-200 gap-4 group"
+                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white/[0.03] border border-white/[0.06] rounded-2xl cursor-pointer gap-4 group card-liquid-subtle shadow-sm"
                         >
                           <div className="flex items-center gap-4">
                             <div className="w-9 h-9 rounded-xl bg-void border border-border/80 flex items-center justify-center text-slate-400 group-hover:border-accent/40 group-hover:text-accent transition-colors">
@@ -312,13 +398,13 @@ export default function ProfilePage() {
                             <div className="flex gap-2.5" onClick={e => e.stopPropagation()}>
                               <button
                                 onClick={() => navigate(`/interview?session_id=${sess.session_id}&mode=${sess.mode}`)}
-                                className="px-4 py-2 bg-accent/10 border border-accent/30 text-accent text-xs font-semibold rounded-xl hover:bg-accent hover:text-void transition-all uppercase tracking-wide font-mono"
+                                className="px-4 py-2 text-xs font-semibold rounded-xl btn-liquid-glass uppercase tracking-wide font-mono"
                               >
                                 Resume
                               </button>
                               <button
                                 onClick={(e) => handleDeleteSession(e, sess.session_id)}
-                                className="p-2 border border-border/80 hover:border-red-500/40 rounded-xl text-text-muted hover:text-red-400 hover:bg-red-500/5 transition-all"
+                                className="p-2 border border-border/80 hover:border-red-500/40 rounded-xl text-text-muted hover:text-red-400 hover:bg-red-500/5 btn-liquid"
                                 title="Purge Record"
                               >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -330,6 +416,14 @@ export default function ProfilePage() {
                         </div>
                       );
                     })}
+                    {sessions.length > displayLimit && (
+                      <button
+                        onClick={() => setDisplayLimit(prev => prev + 10)}
+                        className="w-full mt-4 py-3 text-[11px] font-semibold rounded-xl border border-border/80 hover:border-accent/40 text-text-secondary hover:text-white transition-all duration-200 uppercase tracking-widest font-mono bg-void/35 hover:bg-void/60 shadow-inner"
+                      >
+                        Show More Sessions ({sessions.length - displayLimit} remaining)
+                      </button>
+                    )}
                   </div>
                 ) : (
                   /* PREMIUM SVG EMPTY STATE */
@@ -357,7 +451,7 @@ export default function ProfilePage() {
                     
                     <button
                       onClick={() => navigate('/interview')}
-                      className="px-6 py-3 bg-gradient-to-r from-accent to-teal text-white text-xs font-bold font-mono tracking-widest rounded-xl hover:shadow-glow transition-all uppercase hover:scale-[1.02]"
+                      className="px-8 py-3.5 text-white font-bold tracking-widest rounded-2xl btn-liquid-glass uppercase text-xs font-mono"
                     >
                       Start Mock Session
                     </button>
@@ -369,6 +463,161 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* ── iOS-STYLE SLIDING PROFILE EDIT SHEET ── */}
+      {editModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-void/80 backdrop-blur-md animate-fade-in">
+          {/* Modal Card */}
+          <div className="glass-premium max-w-md w-full rounded-3xl border border-accent/20 p-6 md:p-8 shadow-2xl relative animate-scale-in flex flex-col space-y-6">
+            
+            {/* Header */}
+            <div className="flex justify-between items-center pb-2 border-b border-border/60">
+              <h3 className="text-lg font-display font-bold text-white tracking-tight uppercase flex items-center gap-2">
+                <span>⚙️</span> Edit Profile Details
+              </h3>
+              <button
+                onClick={() => setEditModalOpen(false)}
+                className="w-8 h-8 rounded-full border border-border/80 hover:border-red-500/40 text-text-muted hover:text-red-400 hover:bg-red-500/5 flex items-center justify-center btn-liquid text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Error Message */}
+            {editError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs font-mono">
+                {editError}
+              </div>
+            )}
+
+            {/* Avatar Selection & Upload */}
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative group">
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-accent to-teal blur-md opacity-40 group-hover:opacity-75 transition-opacity" />
+                {editPhoto ? (
+                  <img
+                    src={editPhoto}
+                    alt="Preview"
+                    className="w-24 h-24 rounded-2xl object-cover border border-accent/40 relative z-10"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-2xl bg-void border border-accent/40 flex items-center justify-center text-3xl font-display font-bold text-accent shadow-inner relative z-10">
+                    {editUsername ? editUsername.slice(0, 2).toUpperCase() : '?'}
+                  </div>
+                )}
+                {/* Clear Photo overlay */}
+                {editPhoto && (
+                  <button
+                    onClick={() => setEditPhoto('')}
+                    className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold border border-void z-20 shadow-md"
+                    title="Remove Photo"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Upload Input */}
+              <div className="flex flex-col items-center gap-2 w-full">
+                <label className="px-4 py-2 rounded-xl border border-border/80 bg-void/50 hover:border-accent/40 text-text-secondary hover:text-white cursor-pointer btn-liquid font-mono text-xs text-center w-full">
+                  <span>📷 Upload Custom Profile Photo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 2 * 1024 * 1024) {
+                          setEditError("Image must be smaller than 2MB.");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setEditPhoto(reader.result);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+                <span className="text-[10px] text-text-muted font-mono uppercase">Supports PNG, JPG (Max 2MB)</span>
+              </div>
+            </div>
+
+            {/* Fields Form */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-mono font-bold uppercase tracking-widest text-text-muted">Username</label>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  placeholder="Enter name"
+                  className="w-full px-4 py-3 bg-void/45 border border-border/80 rounded-xl focus:border-accent/60 outline-none text-white text-sm font-sans transition-colors"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-mono font-bold uppercase tracking-widest text-text-muted">Email Address</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="Enter email"
+                  className="w-full px-4 py-3 bg-void/45 border border-border/80 rounded-xl focus:border-accent/60 outline-none text-white text-sm font-sans transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditModalOpen(false)}
+                className="flex-1 py-3 text-xs font-semibold rounded-xl border border-border/80 hover:border-red-500/40 text-text-secondary hover:text-red-400 font-mono uppercase btn-liquid"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingProfile}
+                onClick={async () => {
+                  if (!editUsername.trim()) {
+                    setEditError("Username cannot be empty.");
+                    return;
+                  }
+                  if (!editEmail.trim()) {
+                    setEditError("Email cannot be empty.");
+                    return;
+                  }
+                  try {
+                    setSavingProfile(true);
+                    setEditError('');
+                    await updateUser(editUsername, editEmail, editPhoto);
+                    setEditModalOpen(false);
+                  } catch (err) {
+                    console.error(err);
+                    setEditError(err.response?.data?.detail || "Failed to update profile info.");
+                  } finally {
+                    setSavingProfile(false);
+                  }
+                }}
+                className="flex-1 py-3 text-xs font-semibold rounded-xl bg-accent text-void font-bold font-mono uppercase hover:bg-accent/90 btn-liquid flex items-center justify-center gap-2"
+              >
+                {savingProfile ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-void/30 border-t-void rounded-full animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <span>Save Changes</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

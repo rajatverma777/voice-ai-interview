@@ -28,6 +28,12 @@ class AuthResponse(BaseModel):
     user: dict
 
 
+class UpdateProfileRequest(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    profile_photo: Optional[str] = None
+
+
 # ── Chat ────────────────────────────────────────────────────────────
 class Message(BaseModel):
     role: str  # "user" or "assistant"

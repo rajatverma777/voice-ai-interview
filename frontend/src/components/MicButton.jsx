@@ -7,65 +7,112 @@ export default function MicButton({ isRecording, isLoading, onClick, volume = 0 
   const dynamicScale = isRecording ? 1 + (volume / 255) * 0.25 : 1;
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      {/* Outer glow ring — visible while recording */}
-      <div className={`relative ${isRecording ? 'recording-ring rounded-full' : ''}`}>
-        {/* Pulse rings */}
-        {isRecording && (
+    <div className="flex flex-col items-center gap-4 group">
+      {/* Outer telemetry rings container */}
+      <div className="relative p-6">
+        {/* Dynamic hover glow overlay */}
+        {!isDisabled && (
+          <div className="absolute inset-0 rounded-full bg-accent/5 opacity-0 group-hover:opacity-100 group-hover:scale-125 transition-all duration-500 blur-md pointer-events-none" />
+        )}
+
+        {/* Dual-counter rotating sci-fi orbit rings */}
+        {!isDisabled && (
           <>
-            <span className="absolute inset-0 rounded-full bg-accent/25 animate-ping" />
-            <span className="absolute -inset-2 rounded-full bg-accent/10 animate-ping delay-200" />
+            <div className={`absolute -inset-1 rounded-full border border-dashed transition-colors duration-500 animate-[spin_15s_linear_infinite] ${
+              isRecording ? 'border-red-500/25' : 'border-accent/15'
+            }`} />
+            <div className={`absolute -inset-3.5 rounded-full border border-dashed transition-colors duration-500 animate-[spin_25s_linear_infinite_reverse] ${
+              isRecording ? 'border-red-400/15' : 'border-teal/15'
+            }`} />
           </>
         )}
 
-        <button
-          onClick={onClick}
-          disabled={isDisabled}
-          title={isRecording ? 'Stop recording' : 'Start recording'}
-          style={{ transform: `scale(${dynamicScale})`, transition: 'transform 0.15s ease' }}
+        {/* Pulsing rings while recording */}
+        {isRecording && (
+          <>
+            <span className="absolute inset-4 rounded-full bg-red-500/20 animate-ping pointer-events-none" />
+            <span className="absolute inset-2 rounded-full bg-red-500/10 animate-ping delay-200 pointer-events-none" />
+          </>
+        )}
+
+        {/* Tactile 3D Outer Button Wrapper */}
+        <div
           className={`
-            relative z-10 w-16 h-16 rounded-full flex items-center justify-center
-            transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-accent
+            relative z-10 w-16 h-16 rounded-full flex items-center justify-center btn-liquid
             ${isDisabled
-              ? 'opacity-40 cursor-not-allowed bg-panel border border-border'
+              ? 'opacity-40 cursor-not-allowed bg-white/[0.02] border border-white/[0.06]'
               : isRecording
-                ? 'bg-accent text-void shadow-glow focus:ring-accent'
-                : 'bg-void border border-accent/40 text-accent hover:border-accent hover:shadow-glow focus:ring-accent shadow-glass'
+                ? 'bg-gradient-to-r from-accent to-[#00a6ff] text-void shadow-[0_0_25px_rgba(0,210,255,0.35)]'
+                : 'bg-white/[0.03] border border-accent/40 text-accent shadow-[0_0_25px_rgba(0,210,255,0.12),inset 0 1px 0 rgba(255,255,255,0.05)] hover:border-accent hover:bg-white/[0.06]'
             }
           `}
         >
-          {isLoading ? (
-            <LoadingSpinner />
-          ) : isRecording ? (
-            <StopIcon />
-          ) : (
-            <MicIcon />
-          )}
-        </button>
+          <button
+            onClick={onClick}
+            disabled={isDisabled}
+            title={isRecording ? 'Stop recording' : 'Start recording'}
+            style={{ transform: `scale(${dynamicScale})`, transition: 'transform 0.15s ease' }}
+            className="w-full h-full rounded-full flex items-center justify-center focus:outline-none"
+          >
+            {isLoading ? (
+              <LoadingSpinner />
+            ) : isRecording ? (
+              <StopIcon />
+            ) : (
+              <MicIcon />
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Waveform visualiser */}
+      {/* Symmetric Waveform Visualiser */}
       {isRecording && (
-        <div className="flex items-end gap-[3px] h-6 mt-1">
-          {[...Array(9)].map((_, i) => (
-            <div
-              key={i}
-              className="wave-bar bg-accent"
-              style={{
-                height: `${10 + Math.random() * 12}px`,
-                animationDelay: `${i * 0.07}s`,
-                width: '2px',
-              }}
-            />
-          ))}
+        <div className="flex items-center justify-center gap-[3px] h-6 mt-0.5 px-3 py-1 bg-void/45 border border-border/40 rounded-full shadow-inner">
+          {[...Array(11)].map((_, i) => {
+            // Symmetrical distribution: peak in center (index 5)
+            const dist = Math.abs(i - 5);
+            const baseVal = 18 - dist * 2.5;
+            const delay = i * 0.08;
+            return (
+              <div
+                key={i}
+                className="w-[2.5px] rounded-full bg-gradient-to-t from-teal to-accent origin-center animate-[waveform_1s_ease-in-out_infinite_alternate]"
+                style={{
+                  height: `${baseVal}px`,
+                  animationDelay: `${delay}s`,
+                }}
+              />
+            );
+          })}
         </div>
       )}
 
-      <span className={`text-[10px] font-mono tracking-wider uppercase mt-1 transition-colors ${
-        isRecording ? 'text-accent animate-pulse font-bold' : isDisabled ? 'text-text-muted' : 'text-text-secondary'
-      }`}>
-        {isLoading ? 'Processing...' : isRecording ? 'Transmission Active' : 'Engage Voice Core'}
-      </span>
+      {/* Telemetry Status Capsule */}
+      <div className={`flex items-center gap-2 px-3.5 py-1 rounded-full border transition-all duration-300 bg-white/[0.02] font-mono
+        ${isLoading 
+          ? 'border-indigo-500/25' 
+          : isRecording 
+            ? 'border-red-500/25' 
+            : 'border-white/[0.06]'
+        }`}
+      >
+        <span className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+          isLoading 
+            ? 'bg-indigo-400 animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.6)]' 
+            : isRecording 
+              ? 'bg-red-500 animate-[ping_1.2s_infinite] shadow-[0_0_8px_rgba(239,68,68,0.6)]' 
+              : 'bg-accent animate-[pulse_2s_infinite] shadow-[0_0_8px_rgba(0,210,255,0.6)]'
+        }`} />
+        <span className={`text-[9px] tracking-widest uppercase transition-colors select-none font-bold ${
+          isRecording 
+            ? 'text-red-400 font-bold' 
+            : isLoading 
+              ? 'text-indigo-300' 
+              : 'text-text-secondary group-hover:text-accent'
+        }`}>
+          {isLoading ? 'Processing Signal' : isRecording ? 'Transmission Active' : 'Voice Core Ready'}
+        </span>
+      </div>
     </div>
   );
 }
@@ -91,7 +138,7 @@ function StopIcon() {
 
 function LoadingSpinner() {
   return (
-    <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <svg className="animate-spin text-indigo-400" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
       <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
       <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
     </svg>

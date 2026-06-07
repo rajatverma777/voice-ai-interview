@@ -8,7 +8,7 @@ export default function TypingIndicator() {
         AI
       </div>
 
-      <div className="bg-void/45 border border-border/80 rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-1.5 shadow-glass">
+      <div className="bg-void/45 border border-border/80 rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-1.5 shadow-glass card-liquid backdrop-blur-lg">
         <span className="typing-dot w-1.5 h-1.5 rounded-full bg-accent inline-block" />
         <span className="typing-dot w-1.5 h-1.5 rounded-full bg-accent inline-block" />
         <span className="typing-dot w-1.5 h-1.5 rounded-full bg-accent inline-block" />

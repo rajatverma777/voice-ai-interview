@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 export default function useVoiceRecorder() {
   const [isRecording, setIsRecording] = useState(false);
@@ -77,6 +77,18 @@ export default function useVoiceRecorder() {
     setAudioBlob(null);
     setError(null);
     setVolume(0);
+  }, []);
+
+  // Cleanup on unmount to prevent audio leaks or active mic indicator leaks
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+    };
   }, []);
 
   return {

@@ -45,7 +45,7 @@ export default function FeedbackPanel({ feedback, messageCount }) {
   ];
 
   return (
-    <div className="glass rounded-2xl p-4 border border-border/80 space-y-4">
+    <div className="bg-white/[0.03] rounded-2xl p-4 border border-white/[0.06] space-y-4 card-liquid hover:bg-white/[0.06] hover:border-accent/30 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)]">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -68,7 +68,7 @@ export default function FeedbackPanel({ feedback, messageCount }) {
               </span>
               <span className="font-bold text-white">{m.value}%</span>
             </div>
-            <div className="h-1.5 bg-void rounded-full overflow-hidden border border-border/60">
+            <div className="h-1.5 bg-white/[0.01] rounded-full overflow-hidden border border-white/[0.04]">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-accent to-teal transition-all duration-1000"
                 style={{ width: `${m.value}%` }}
@@ -80,7 +80,7 @@ export default function FeedbackPanel({ feedback, messageCount }) {
 
       {/* Suggestion */}
       {suggestions?.length > 0 && (
-        <div className="rounded-xl bg-void/50 border border-border/80 p-3 flex gap-2 items-start">
+        <div className="rounded-xl bg-white/[0.02] border border-white/[0.06] p-3 flex gap-2 items-start card-liquid hover:bg-white/[0.05] hover:border-accent/30 hover:shadow-[0_0_15px_rgba(0,210,255,0.04)]">
           <span className="text-xs text-accent">💡</span>
           <p className="text-[10px] text-text-secondary leading-relaxed font-sans">
             <span className="font-bold text-white font-mono uppercase text-[9px] block mb-0.5">Evaluation Tip</span>

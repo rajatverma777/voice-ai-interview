@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const MODES = [
   {
@@ -37,28 +37,69 @@ const MODES = [
 ];
 
 export default function ModeSelector({ selected, onChange, disabled }) {
+  const containerRef = useRef(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ top: 0, height: 0, opacity: 0 });
+
+  // Update vertical sliding indicator position dynamically
+  useEffect(() => {
+    const updateIndicator = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const activeChild = container.querySelector('[data-active="true"]');
+      if (activeChild) {
+        setIndicatorStyle({
+          top: activeChild.offsetTop,
+          height: activeChild.offsetHeight,
+          opacity: 1,
+        });
+      } else {
+        setIndicatorStyle(prev => ({ ...prev, opacity: 0 }));
+      }
+    };
+
+    updateIndicator();
+
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [selected]);
+
   return (
-    <div className="flex flex-col gap-2.5 w-full">
+    <div className="flex flex-col gap-2.5 w-full relative" ref={containerRef}>
+      {/* iOS Liquid Sliding Vertically Background Capsule */}
+      <div 
+        className="absolute left-0 w-full bg-accent/[0.10] border border-accent/30 rounded-[22px] pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
+        style={{
+          transform: `translate3d(0, ${indicatorStyle.top}px, 0)`,
+          height: `${indicatorStyle.height}px`,
+          opacity: indicatorStyle.opacity,
+          transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
+        }}
+      />
+
       {MODES.map(mode => {
         const isActive = selected === mode.id;
         return (
           <button
             key={mode.id}
+            data-active={isActive}
             onClick={() => onChange(mode.id)}
             disabled={disabled}
             className={`
-              flex items-center gap-3.5 p-3.5 rounded-2xl border text-left
-              transition-all duration-200 group w-full
+              flex items-center gap-3.5 p-3.5 rounded-[22px] border text-left
+              group w-full btn-liquid relative z-10
               ${disabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'}
               ${isActive
-                ? `bg-accent/[0.04] border-accent/60 text-accent shadow-glow-sm`
-                : `border-border/60 text-text-secondary bg-void/30 ${!disabled ? 'hover:border-accent/40 hover:bg-void/50 hover:text-white' : ''}`
+                ? `border-transparent text-accent`
+                : `border-white/[0.06] text-text-secondary bg-white/[0.03] ${!disabled ? 'hover:border-accent/30 hover:bg-white/[0.06] hover:text-white' : ''}`
               }
             `}
           >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
+            <div className={`w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${
               isActive 
-                ? 'bg-void border border-accent/20 text-accent' 
+                ? 'bg-[#070a13]/80 border border-accent/40 text-accent shadow-sm' 
                 : 'bg-void border border-border/80 text-text-muted group-hover:text-accent group-hover:border-accent/30'
             }`}>
               {mode.icon}

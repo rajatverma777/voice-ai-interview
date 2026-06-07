@@ -36,6 +36,70 @@ export default function InterviewPage() {
     sendMessage, processAudio, playAudio, stopAudio, startSession, loadSession, clearSession, setMode, setDifficulty,
   } = useInterview();
 
+  const difficultyContainerRef = useRef(null);
+  const [difficultyIndicator, setDifficultyIndicator] = useState({ left: 0, width: 0, height: 0, opacity: 0 });
+  const [hoveredDifficulty, setHoveredDifficulty] = useState(null);
+  const activeDifficulty = hoveredDifficulty || difficulty;
+
+  // Update difficulty indicator coordinates dynamically
+  useEffect(() => {
+    const updateIndicator = () => {
+      const container = difficultyContainerRef.current;
+      if (!container) return;
+
+      const activeChild = container.querySelector('[data-active="true"]');
+      if (activeChild) {
+        setDifficultyIndicator({
+          left: activeChild.offsetLeft,
+          width: activeChild.offsetWidth,
+          height: activeChild.offsetHeight,
+          opacity: 1,
+        });
+      } else {
+        setDifficultyIndicator(prev => ({ ...prev, opacity: 0 }));
+      }
+    };
+
+    updateIndicator();
+
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [activeDifficulty]);
+
+  const inputModeContainerRef = useRef(null);
+  const [inputModeIndicator, setInputModeIndicator] = useState({ left: 0, width: 0, height: 0, opacity: 0 });
+  const [hoveredInputMode, setHoveredInputMode] = useState(null);
+  const activeInputMode = hoveredInputMode || inputMode;
+
+  // Update input mode indicator coordinates dynamically
+  useEffect(() => {
+    const updateIndicator = () => {
+      const container = inputModeContainerRef.current;
+      if (!container) return;
+
+      const activeChild = container.querySelector('[data-active="true"]');
+      if (activeChild) {
+        setInputModeIndicator({
+          left: activeChild.offsetLeft,
+          width: activeChild.offsetWidth,
+          height: activeChild.offsetHeight,
+          opacity: 1,
+        });
+      } else {
+        setInputModeIndicator(prev => ({ ...prev, opacity: 0 }));
+      }
+    };
+
+    updateIndicator();
+
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [activeInputMode, sessionStarted]);
+
   const {
     isRecording, audioBlob, error: recorderError, volume,
     startRecording, stopRecording, resetRecording,
@@ -52,6 +116,14 @@ export default function InterviewPage() {
       }
     }
   }, []);
+
+  // Initialize mode from URL search parameters on fresh load
+  useEffect(() => {
+    const sessionIdParam = searchParams.get('session_id');
+    if (!sessionIdParam && initialMode) {
+      setMode(initialMode);
+    }
+  }, [initialMode, searchParams, setMode]);
 
   const updateSetting = (key, value) => {
     setSettings(prev => {
@@ -165,6 +237,7 @@ export default function InterviewPage() {
 
   const userMessageCount = messages.filter(m => m.role === 'user').length;
   const lastMsgIsAssistant = messages.length > 0 && messages[messages.length - 1].role === 'assistant';
+  const isHintSkipActive = lastMsgIsAssistant && !isLoading;
 
   // Compute cumulative feedback
   const feedbackMessages = messages.filter(m => m.role === 'assistant' && m.feedback);
@@ -191,9 +264,7 @@ export default function InterviewPage() {
   }
 
   return (
-    <div className="pt-16 h-screen flex overflow-hidden relative bg-void">
-      {/* Dynamic background light */}
-      <div className="absolute top-1/2 left-1/3 w-[500px] h-[500px] bg-accent/2 rounded-full blur-[140px] pointer-events-none" />
+    <div className="pt-20 h-screen flex overflow-hidden relative">
 
       {/* ── Sidebar Deck ── */}
       <aside className={`flex-shrink-0 transition-all duration-300 ${showSidebar ? 'w-72' : 'w-0 overflow-hidden'} z-20`}>
@@ -212,38 +283,54 @@ export default function InterviewPage() {
           {/* Difficulty Selector */}
           <div className="font-mono">
             <p className="text-[9px] text-text-muted mb-2 font-bold tracking-widest uppercase">Difficulty Level</p>
-            <div className="flex rounded-2xl overflow-hidden border border-border bg-void/50 p-1 text-[11px]">
-              {['easy', 'medium', 'hard'].map(d => (
-                <button
-                  key={d}
-                  disabled={sessionStarted || messages.length > 0}
-                  onClick={() => setDifficulty(d)}
-                  className={`flex-1 py-2 font-bold capitalize transition-all rounded-xl ${
-                    difficulty === d
-                      ? 'bg-gradient-to-r from-accent to-teal text-white shadow-glow-sm'
-                      : 'text-text-secondary hover:text-white disabled:opacity-40'
-                  }`}
-                >
-                  {d}
-                </button>
-              ))}
+            <div className="flex rounded-full relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px]" ref={difficultyContainerRef}>
+              {/* iOS Liquid Sliding Tab Indicator */}
+              <div
+                className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
+                style={{
+                  transform: `translate3d(${difficultyIndicator.left}px, -50%, 0)`,
+                  width: `${difficultyIndicator.width}px`,
+                  height: `${difficultyIndicator.height}px`,
+                  opacity: difficultyIndicator.opacity,
+                  transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
+                }}
+              />
+              {['easy', 'medium', 'hard'].map(d => {
+                const isActive = activeDifficulty === d;
+                return (
+                  <button
+                    key={d}
+                    data-active={isActive}
+                    disabled={sessionStarted || messages.length > 0}
+                    onMouseEnter={() => setHoveredDifficulty(d)}
+                    onMouseLeave={() => setHoveredDifficulty(null)}
+                    onClick={() => setDifficulty(d)}
+                    className={`flex-1 py-1.5 rounded-full text-xs font-semibold tracking-wide btn-liquid z-10 relative border transition-all duration-300 capitalize text-center ${
+                      isActive
+                        ? 'border-transparent text-accent'
+                        : 'border-white/[0.06] text-text-secondary bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06] hover:text-white disabled:opacity-30'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
             </div>
           </div>
-
           {/* Session controllers */}
           <div className="space-y-2.5 font-mono text-[11px]">
             {!sessionStarted ? (
               messages.length > 0 ? (
                 <button
                   onClick={handleResumeSessionClick}
-                  className="w-full py-3 bg-gradient-to-r from-accent to-teal text-white font-extrabold rounded-xl shadow-glow hover:shadow-[0_0_20px_rgba(0,210,255,0.4)] transition-all uppercase tracking-wider"
+                  className="w-full py-3.5 text-white font-extrabold rounded-2xl btn-liquid-glass uppercase tracking-wider"
                 >
                   Resume Interview
                 </button>
               ) : (
                 <button
                   onClick={handleStartSession}
-                  className="w-full py-3 bg-gradient-to-r from-accent to-teal text-white font-extrabold rounded-xl shadow-glow hover:shadow-[0_0_20px_rgba(0,210,255,0.4)] transition-all uppercase tracking-wider"
+                  className="w-full py-3.5 text-white font-extrabold rounded-2xl btn-liquid-glass uppercase tracking-wider"
                 >
                   Start Session
                 </button>
@@ -251,38 +338,54 @@ export default function InterviewPage() {
             ) : (
               <button
                 onClick={handleClearSession}
-                className="w-full py-3 bg-void border border-red-500/35 text-red-400 hover:text-red-300 font-bold rounded-xl hover:bg-red-500/5 transition-all uppercase tracking-wider"
+                className="w-full py-3.5 rounded-2xl btn-liquid-glass-danger uppercase tracking-wider"
               >
                 End Session
               </button>
             )}
           </div>
 
-          {/* Input mode toggle */}
           {sessionStarted && (
             <div className="font-mono">
               <p className="text-[9px] text-text-muted mb-2 font-bold tracking-widest uppercase">Input Mode</p>
-              <div className="flex rounded-2xl overflow-hidden border border-border bg-void/50 p-1 text-[11px]">
-                {['voice', 'text'].map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setInputMode(m)}
-                    className={`flex-1 py-2 font-bold capitalize rounded-xl transition-all ${
-                      inputMode === m
-                        ? 'bg-gradient-to-r from-accent to-teal text-white shadow-glow-sm'
-                        : 'text-text-secondary hover:text-white'
-                    }`}
-                  >
-                    {m === 'voice' ? '🎙️ Voice' : '✍️ Text'}
-                  </button>
-                ))}
+              <div className="flex rounded-full relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px]" ref={inputModeContainerRef}>
+                {/* iOS Liquid Sliding Tab Indicator */}
+                <div
+                  className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
+                  style={{
+                    transform: `translate3d(${inputModeIndicator.left}px, -50%, 0)`,
+                    width: `${inputModeIndicator.width}px`,
+                    height: `${inputModeIndicator.height}px`,
+                    opacity: inputModeIndicator.opacity,
+                    transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
+                  }}
+                />
+                {['voice', 'text'].map(m => {
+                  const isActive = activeInputMode === m;
+                  return (
+                    <button
+                      key={m}
+                      data-active={isActive}
+                      onMouseEnter={() => setHoveredInputMode(m)}
+                      onMouseLeave={() => setHoveredInputMode(null)}
+                      onClick={() => setInputMode(m)}
+                      className={`flex-1 py-1.5 rounded-full text-xs font-semibold tracking-wide btn-liquid z-10 relative border transition-all duration-300 capitalize text-center ${
+                        isActive
+                          ? 'border-transparent text-accent'
+                          : 'border-white/[0.06] text-text-secondary bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06] hover:text-white'
+                      }`}
+                    >
+                      {m === 'voice' ? '🎙️ Voice' : '✍️ Text'}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* Diagnostics summary metrics */}
           {(sessionStarted || messages.length > 0) && (
-            <div className="glass rounded-2xl p-4 space-y-2.5 text-[10px] border border-border/80 font-mono">
+            <div className="bg-white/[0.03] rounded-2xl p-4 space-y-2.5 text-[10px] border border-white/[0.06] font-mono card-liquid hover:bg-white/[0.06] hover:border-accent/30 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)]">
               <div className="flex justify-between">
                 <span className="text-text-secondary">EXCHANGES</span>
                 <span className="text-white font-bold">{userMessageCount}</span>
@@ -308,59 +411,66 @@ export default function InterviewPage() {
       </aside>
 
       {/* ── Main Workspace ── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-void relative z-10">
+      <div className="flex-1 flex flex-col overflow-hidden bg-transparent relative z-10">
         
-        {/* Workspace Header */}
-        <div className="glass border-b border-border/80 px-4 py-3 flex items-center gap-3 font-mono">
-          <button
-            onClick={() => setShowSidebar(v => !v)}
-            className="w-9 h-9 rounded-xl hover:bg-white/5 border border-transparent hover:border-border flex items-center justify-center text-text-secondary hover:text-white transition-all"
-            title="Toggle settings panel"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
-            </svg>
-          </button>
+        {/* Workspace Floating Header (Split 2-Part Design) */}
+        <div className="px-6 py-4 flex items-center justify-between font-mono bg-transparent z-20 gap-4">
+          
+          {/* Left Pill Group */}
+          <div className="glass rounded-full px-3 py-1.5 flex items-center gap-4 shadow-glass card-liquid hover:border-accent/35 hover:shadow-[0_0_15px_rgba(0,210,255,0.06)]">
+            <button
+              onClick={() => setShowSidebar(v => !v)}
+              className="w-8 h-8 rounded-full hover:bg-white/5 border border-transparent hover:border-border flex items-center justify-center text-text-secondary hover:text-white btn-liquid"
+              title="Toggle settings panel"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+            </button>
 
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${sessionStarted ? 'bg-accent animate-pulse shadow-glow' : 'bg-red-500'}`} />
-            <span className="text-xs font-semibold text-white">
-              {sessionStarted ? 'SESSION ACTIVE' : 'STANDBY'}
-            </span>
-            {(sessionStarted || messages.length > 0) && (
-              <span className="text-[10px] bg-accent/10 border border-accent/25 text-accent px-3 py-0.5 rounded-full ml-3 font-bold">
-                ⏱ {formatTime(timerSeconds)}
+            <div className="flex items-center gap-2.5 pr-2">
+              <div className={`w-2 h-2 rounded-full ${sessionStarted ? 'bg-accent animate-pulse shadow-glow' : 'bg-red-500'}`} />
+              <span className="text-[10px] font-bold tracking-wider text-white">
+                {sessionStarted ? 'SESSION ACTIVE' : 'STANDBY'}
               </span>
-            )}
+              {(sessionStarted || messages.length > 0) && (
+                <span className="text-[9.5px] bg-accent/15 border border-accent/25 text-accent px-2.5 py-0.5 rounded-full ml-1 font-bold font-mono">
+                  ⏱ {formatTime(timerSeconds)}
+                </span>
+              )}
+            </div>
           </div>
 
-          {isPlaying && (
-            <button
-              onClick={stopAudio}
-              className="ml-auto text-xs text-red-400 hover:text-red-300 flex items-center gap-2 transition-colors font-bold uppercase tracking-wider"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-              Pause TTS
-            </button>
-          )}
+          {/* Right Pill Group */}
+          <div className="glass rounded-full p-1.5 flex items-center gap-2 shadow-glass card-liquid hover:border-accent/35 hover:shadow-[0_0_15px_rgba(0,210,255,0.06)]">
+            {isPlaying && (
+              <button
+                onClick={stopAudio}
+                className="px-3.5 py-1.5 text-[10px] text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 bg-red-500/5 rounded-full flex items-center gap-1.5 btn-liquid font-bold uppercase tracking-wider"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                Pause TTS
+              </button>
+            )}
 
-          {/* Settings Trigger Gear Button */}
-          <button
-            onClick={() => setShowSettingsModal(true)}
-            className={`${!isPlaying ? 'ml-auto' : ''} w-9 h-9 rounded-xl hover:bg-white/5 border border-transparent hover:border-border flex items-center justify-center text-text-secondary hover:text-white transition-all`}
-            title="Adjust preferences"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-          </button>
+            {/* Settings Trigger Gear Button */}
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="w-8 h-8 rounded-full hover:bg-white/5 border border-transparent hover:border-border flex items-center justify-center text-text-secondary hover:text-white btn-liquid"
+              title="Adjust preferences"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Workspace Chat Console */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5 scrollbar-thin">
           {!sessionStarted && messages.length === 0 ? (
-            <EmptyState onStart={handleStartSession} />
+            <EmptyState selectedMode={mode} onStart={handleStartSession} />
           ) : (
             <>
               {messages.map(msg => (
@@ -384,84 +494,140 @@ export default function InterviewPage() {
 
         {/* ── Interactive Input Dock ── */}
         {sessionStarted ? (
-          <div className="border-t border-border/80 glass px-4 py-5 font-mono">
+          <div className="bg-transparent px-4 py-5 font-mono">
             {inputMode === 'voice' ? (
-              <div className="flex flex-col items-center gap-2 relative">
-                <div className="flex items-center justify-center gap-6 w-full">
-                  {lastMsgIsAssistant && !isLoading && (
-                    <button
-                      onClick={handleGetHint}
-                      className="px-4.5 py-2.5 bg-accent/10 border border-accent/30 text-accent text-xs font-semibold rounded-xl hover:bg-accent/20 hover:text-white transition-all flex items-center gap-1.5 font-mono"
-                      title="Request Hint"
-                    >
-                      💡 Hint
-                    </button>
-                  )}
+              <div className="flex flex-col items-center gap-4 relative">
+                <div className="flex items-center justify-center gap-8 w-full">
+                  <button
+                    onClick={handleGetHint}
+                    disabled={!isHintSkipActive}
+                    className={`px-5 py-2 border text-xs font-semibold rounded-full btn-liquid flex items-center gap-2 font-sans
+                      ${isHintSkipActive
+                        ? "border-accent/30 bg-transparent text-accent hover:border-accent/60 hover:bg-accent/8 hover:text-white cursor-pointer shadow-[0_0_12px_rgba(0,210,255,0.06)]"
+                        : "opacity-25 pointer-events-none border-white/[0.06] bg-transparent text-text-muted"
+                      }`}
+                    title={isHintSkipActive ? "Request Hint" : "Hint unavailable"}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isHintSkipActive ? "text-accent" : "text-text-muted"}>
+                      <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/>
+                    </svg>
+                    Hint
+                  </button>
+
                   <MicButton
                     isRecording={isRecording}
                     isLoading={isLoading}
                     onClick={handleMicClick}
                     volume={volume}
                   />
-                  {lastMsgIsAssistant && !isLoading && (
-                    <button
-                      onClick={() => sendMessage('next question')}
-                      className="px-4.5 py-2.5 bg-teal/10 border border-teal/30 text-teal text-xs font-semibold rounded-xl hover:bg-teal/25 hover:text-white transition-all flex items-center gap-1.5 font-mono"
-                      title="Skip question"
-                    >
-                      ⏭ Skip
-                    </button>
-                  )}
+
+                  <button
+                    onClick={() => sendMessage('next question')}
+                    disabled={!isHintSkipActive}
+                    className={`px-5 py-2 border text-xs font-semibold rounded-full btn-liquid flex items-center gap-2 font-sans
+                      ${isHintSkipActive
+                        ? "border-indigo-500/30 bg-transparent text-indigo-400 hover:border-indigo-500/60 hover:bg-indigo-500/8 hover:text-white cursor-pointer shadow-[0_0_12px_rgba(99,102,241,0.06)]"
+                        : "opacity-25 pointer-events-none border-white/[0.06] bg-transparent text-text-muted"
+                      }`}
+                    title={isHintSkipActive ? "Skip question" : "Skip unavailable"}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isHintSkipActive ? "text-indigo-400" : "text-text-muted"}>
+                      <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
+                    </svg>
+                    Skip
+                  </button>
                 </div>
+
+                {/* Inline Mode Switch button */}
+                <button
+                  onClick={() => setInputMode('text')}
+                  className="mt-1 text-[10px] font-mono tracking-wider text-text-muted hover:text-accent flex items-center gap-1.5 px-3 py-1 rounded-full border border-transparent hover:border-accent/20 hover:bg-accent/5 btn-liquid"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Switch to Keyboard Input
+                </button>
               </div>
             ) : (
-              <form onSubmit={handleTypingSubmit} className="flex gap-3 max-w-4xl mx-auto">
-                <div className="flex gap-2 flex-1">
+              <div className="flex flex-col items-center gap-3 max-w-4xl mx-auto w-full">
+                <form onSubmit={handleTypingSubmit} className="flex gap-2.5 w-full items-center">
                   <input
                     type="text"
                     value={typingText}
                     onChange={e => setTypingText(e.target.value)}
-                    placeholder="Enter response message parameters..."
+                    placeholder="Type your response here..."
                     disabled={isLoading}
-                    className="flex-1 bg-void border border-border/80 rounded-xl px-4 py-3 text-xs text-white placeholder:text-text-muted focus:outline-none focus:border-accent/60 transition-colors disabled:opacity-50 font-sans"
+                    className="flex-1 bg-transparent border border-white/[0.06] rounded-full px-5 py-3 text-xs text-white placeholder:text-text-muted focus:outline-none focus:border-accent/80 focus:shadow-[0_0_15px_rgba(0,210,255,0.1)] transition-all disabled:opacity-50 font-sans min-w-0"
                   />
-                  {lastMsgIsAssistant && !isLoading && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleGetHint}
-                        className="px-4.5 py-2.5 bg-accent/10 border border-accent/30 text-accent text-xs font-semibold rounded-xl hover:bg-accent/20 hover:text-white transition-all flex items-center gap-1.5"
-                        title="Request Hint"
-                      >
-                        💡 Hint
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => sendMessage('next question')}
-                        className="px-4.5 py-2.5 bg-teal/10 border border-teal/30 text-teal text-xs font-semibold rounded-xl hover:bg-teal/25 hover:text-white transition-all flex items-center gap-1.5"
-                        title="Skip question"
-                      >
-                        ⏭ Skip
-                      </button>
-                    </>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={isLoading || !typingText.trim()}
-                    className="px-5 py-3 bg-gradient-to-r from-accent to-teal text-white text-xs font-bold rounded-xl disabled:opacity-40 hover:shadow-glow transition-all uppercase"
-                  >
-                    Send
-                  </button>
-                </div>
-              </form>
+                  
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleGetHint}
+                      disabled={!isHintSkipActive}
+                      className={`px-4 py-2 border text-xs font-semibold rounded-full btn-liquid flex items-center gap-1.5 font-sans
+                        ${isHintSkipActive
+                          ? "border-accent/30 bg-transparent text-accent hover:border-accent/60 hover:bg-accent/8 hover:text-white cursor-pointer shadow-[0_0_12px_rgba(0,210,255,0.06)]"
+                          : "opacity-25 pointer-events-none border-white/[0.06] bg-transparent text-text-muted"
+                        }`}
+                      title={isHintSkipActive ? "Request Hint" : "Hint unavailable"}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isHintSkipActive ? "text-accent" : "text-text-muted"}>
+                        <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/>
+                      </svg>
+                      <span className="hidden sm:inline">Hint</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => sendMessage('next question')}
+                      disabled={!isHintSkipActive}
+                      className={`px-4 py-2 border text-xs font-semibold rounded-full btn-liquid flex items-center gap-1.5 font-sans
+                        ${isHintSkipActive
+                          ? "border-indigo-500/30 bg-transparent text-indigo-400 hover:border-indigo-500/60 hover:bg-indigo-500/8 hover:text-white cursor-pointer shadow-[0_0_12px_rgba(99,102,241,0.06)]"
+                          : "opacity-25 pointer-events-none border-white/[0.06] bg-transparent text-text-muted"
+                        }`}
+                      title={isHintSkipActive ? "Skip question" : "Skip unavailable"}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isHintSkipActive ? "text-indigo-400" : "text-text-muted"}>
+                        <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
+                      </svg>
+                      <span className="hidden sm:inline">Skip</span>
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={isLoading || !typingText.trim()}
+                      className="px-5 py-2.5 bg-gradient-to-r from-accent to-indigo-500 text-void font-bold text-xs rounded-full disabled:opacity-40 shadow-glow btn-liquid uppercase tracking-wider"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </form>
+
+                {/* Inline Mode Toggle Link below the text input form */}
+                <button
+                  type="button"
+                  onClick={() => setInputMode('voice')}
+                  className="text-[10px] font-mono tracking-wider text-text-muted hover:text-accent flex items-center gap-1.5 px-3 py-1 rounded-full border border-transparent hover:border-accent/20 hover:bg-accent/5 btn-liquid"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  </svg>
+                  Switch to Voice Input
+                </button>
+              </div>
             )}
           </div>
         ) : (
           messages.length > 0 && (
-            <div className="border-t border-border/80 glass px-4 py-6 flex flex-col items-center gap-3 font-mono">
+            <div className="bg-transparent px-4 py-6 flex flex-col items-center gap-3 font-mono">
               <button
                 onClick={handleResumeSessionClick}
-                className="px-8 py-3.5 bg-gradient-to-r from-accent to-teal text-white text-xs font-bold tracking-widest rounded-xl hover:shadow-glow transition-all uppercase"
+                className="px-8 py-3.5 text-xs font-bold rounded-xl btn-liquid-glass uppercase"
               >
                 Resume Mock Session
               </button>
@@ -477,7 +643,7 @@ export default function InterviewPage() {
           <div className="glass-premium max-w-md w-full mx-4 rounded-3xl border border-accent/30 p-6 shadow-glow relative animate-scale-in">
             <button
               onClick={() => setShowHintModal(false)}
-              className="absolute top-4 right-4 text-text-muted hover:text-white transition-colors text-sm"
+              className="absolute top-4 right-4 text-text-muted hover:text-white btn-liquid text-sm"
             >
               ✕
             </button>
@@ -490,7 +656,7 @@ export default function InterviewPage() {
             </p>
             <button
               onClick={() => setShowHintModal(false)}
-              className="w-full py-3 bg-gradient-to-r from-accent to-teal text-white font-bold rounded-xl hover:shadow-glow transition-all text-xs font-mono tracking-wider uppercase"
+              className="w-full py-3 text-xs font-mono font-bold rounded-xl btn-liquid-glass tracking-wider uppercase"
             >
               Close Portal
             </button>
@@ -504,7 +670,7 @@ export default function InterviewPage() {
           <div className="glass-premium max-w-sm w-full mx-4 rounded-3xl border border-accent/30 p-6 shadow-glow relative animate-scale-in">
             <button
               onClick={() => setShowSettingsModal(false)}
-              className="absolute top-4 right-4 text-text-muted hover:text-white transition-colors text-sm"
+              className="absolute top-4 right-4 text-text-muted hover:text-white btn-liquid text-sm"
             >
               ✕
             </button>
@@ -570,7 +736,7 @@ export default function InterviewPage() {
 
             <button
               onClick={() => setShowSettingsModal(false)}
-              className="w-full py-3 bg-gradient-to-r from-accent to-teal text-white font-bold rounded-xl hover:shadow-glow transition-all text-xs font-mono tracking-wider uppercase mt-6"
+              className="w-full py-3 text-xs font-mono font-bold rounded-xl btn-liquid-glass tracking-wider uppercase mt-6"
             >
               Save Settings
             </button>
@@ -581,26 +747,90 @@ export default function InterviewPage() {
   );
 }
 
-function EmptyState({ onStart }) {
+const WORKSPACE_CONFIGS = {
+  dsa: {
+    title: "INITIALIZE DSA WORKSPACE",
+    description: "Configure recursion, sorting, tree structures, and Big-O complexity parameters from the side menu to begin your technical mock session.",
+    focus: ["Big-O Complexity Analysis", "Recursive Logic Tracing", "Graph & Tree Traversal"],
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent">
+        <circle cx="12" cy="5" r="2.5" />
+        <circle cx="5" cy="12" r="2.5" />
+        <circle cx="19" cy="12" r="2.5" />
+        <circle cx="12" cy="19" r="2.5" />
+        <line x1="12" y1="7.5" x2="5" y2="12" />
+        <line x1="12" y1="7.5" x2="19" y2="12" />
+        <line x1="5" y1="12" x2="12" y2="19" />
+        <line x1="19" y1="12" x2="12" y2="19" />
+        <line x1="12" y1="7.5" x2="12" y2="16.5" />
+      </svg>
+    )
+  },
+  hr: {
+    title: "INITIALIZE BEHAVIORAL WORKSPACE",
+    description: "Prepare to align with the STAR framework (Situation, Task, Action, Result), situational queries, leadership principles, and communication metrics.",
+    focus: ["Situation & Task framing", "Action & Resolution strategies", "Leadership Core Principles"],
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        <path d="M8 10h.01M12 10h.01M16 10h.01" strokeWidth="2.5" strokeLinecap="round"/>
+      </svg>
+    )
+  },
+  system_design: {
+    title: "INITIALIZE SYSTEM DESIGN WORKSPACE",
+    description: "Assess scalable databases, data replication schemes, load balancing, API gateways, CDN caching, and microservices architecture.",
+    focus: ["Database Sharding & Replication", "Load Balancing & CDN Caching", "API Gateway & Routing Topology"],
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent">
+        <rect x="2" y="2" width="20" height="6" rx="1"/>
+        <rect x="2" y="9" width="20" height="6" rx="1"/>
+        <rect x="2" y="16" width="20" height="6" rx="1"/>
+        <path d="M6 5h.01M6 12h.01M6 19h.01" strokeWidth="2.5" strokeLinecap="round"/>
+        <path d="M10 5h2M10 12h2M10 19h2"/>
+      </svg>
+    )
+  }
+};
+
+function EmptyState({ selectedMode, onStart }) {
+  const activeConfig = WORKSPACE_CONFIGS[selectedMode] || WORKSPACE_CONFIGS.dsa;
+
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-4 font-mono select-none">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-accent/5 to-teal/5 border border-border/80 flex items-center justify-center animate-float shadow-inner">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="8" y1="23" x2="16" y2="23"/>
-        </svg>
+    <div
+      key={selectedMode}
+      className="flex flex-col items-center justify-center h-full gap-7 text-center px-4 font-mono select-none max-w-lg mx-auto animate-workspace-enter"
+    >
+      {/* Floating Icon Wrapper */}
+      <div className="w-18 h-18 rounded-2xl bg-gradient-to-tr from-accent/5 to-teal/5 border border-accent/25 flex items-center justify-center animate-float shadow-[0_0_20px_rgba(0,210,255,0.05)]">
+        {activeConfig.icon}
       </div>
-      <div>
-        <h3 className="font-display text-sm font-bold text-white tracking-wider mb-2">INITIALIZE SESSION WORKSPACE</h3>
-        <p className="text-text-secondary text-xs max-w-xs leading-relaxed font-sans normal-case">
-          Configure interview difficulty parameters and mode selections from the side menu, then run your mock audio practice session.
+
+      <div className="space-y-3">
+        <h3 className="font-display text-sm font-bold text-white tracking-widest uppercase transition-all duration-300">
+          {activeConfig.title}
+        </h3>
+        <p className="text-text-secondary text-xs max-w-sm leading-relaxed font-sans normal-case">
+          {activeConfig.description}
         </p>
       </div>
+
+      {/* focus/detail parameters list */}
+      <div className="w-full bg-void/35 border border-border/60 rounded-2xl p-4 space-y-2 text-[10px] text-left">
+        <p className="text-[9px] text-text-muted font-bold tracking-widest uppercase mb-2">Protocol Focus Areas</p>
+        <div className="grid grid-cols-1 gap-2.5">
+          {activeConfig.focus.map((item, index) => (
+            <div key={index} className="flex items-center gap-2 font-sans text-text-secondary">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <button
         onClick={onStart}
-        className="px-6 py-3 bg-gradient-to-r from-accent to-teal text-white text-xs font-bold rounded-xl hover:shadow-glow transition-all uppercase tracking-wider font-mono hover:scale-[1.02]"
+        className="px-8 py-3.5 text-xs font-bold rounded-full btn-liquid-glass uppercase tracking-wider font-mono"
       >
         Start Session →
       </button>

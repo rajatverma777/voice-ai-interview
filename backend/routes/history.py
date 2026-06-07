@@ -34,11 +34,18 @@ async def clear_history(session_id: str):
 
 @router.get("/")
 async def list_sessions():
-    """List all sessions (latest 20)."""
+    """List all sessions (latest 20) — metadata only, NO messages to keep response small."""
     try:
         db = get_db()
-        cursor = db.sessions.find({}, {"_id": 0}).sort("created_at", -1).limit(20)
+        # Exclude the messages array from the list response — it can be megabytes of data
+        # that blocks the browser's main thread with a synchronous JSON.parse when received.
+        # Full messages are fetched individually via GET /{session_id} when needed (e.g. Resume).
+        cursor = db.sessions.find(
+            {},
+            {"_id": 0, "messages": 0}  # Exclude messages field entirely
+        ).sort("created_at", -1).limit(20)
         sessions = await cursor.to_list(length=20)
         return {"sessions": sessions}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+

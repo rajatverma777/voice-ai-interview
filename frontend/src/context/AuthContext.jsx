@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { loginUser, registerUser, logoutUser, getMe } from '../services/api';
+import { loginUser, registerUser, logoutUser, getMe, updateProfile } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -55,8 +55,16 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback(async (username, email, profilePhoto) => {
+    const data = await updateProfile({ username, email, profilePhoto });
+    localStorage.setItem('vai_token', data.access_token);
+    localStorage.setItem('vai_user', JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

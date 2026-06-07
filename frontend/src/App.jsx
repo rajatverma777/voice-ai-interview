@@ -7,6 +7,8 @@ import InterviewPage from './pages/InterviewPage';
 import AuthPage from './pages/AuthPage';
 import ProfilePage from './pages/ProfilePage';
 
+import BackgroundParticles from './components/BackgroundParticles';
+
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
   if (loading) {
@@ -27,9 +29,10 @@ function AppRoutes() {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-void dot-grid flex flex-col">
+    <div className="min-h-screen bg-void dot-grid flex flex-col relative overflow-hidden">
+      <BackgroundParticles />
       <Navbar />
-      <main className="flex-1">
+      <main className="flex-1 z-10 relative" style={{ isolation: 'isolate' }}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route

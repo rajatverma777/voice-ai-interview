@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,6 +10,36 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuth();
   const navigate = useNavigate();
+
+  const containerRef = useRef(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, height: 0, opacity: 0 });
+
+  // Update tabs indicator coordinates dynamically
+  useEffect(() => {
+    const updateIndicator = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const activeChild = container.querySelector('[data-active="true"]');
+      if (activeChild) {
+        setIndicatorStyle({
+          left: activeChild.offsetLeft,
+          width: activeChild.offsetWidth,
+          height: activeChild.offsetHeight,
+          opacity: 1,
+        });
+      } else {
+        setIndicatorStyle(prev => ({ ...prev, opacity: 0 }));
+      }
+    };
+
+    updateIndicator();
+
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [mode]);
 
   const handleChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -45,9 +75,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-void dot-grid flex items-center justify-center px-4 relative overflow-hidden pt-12">
-      {/* Background soft ambient glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-accent/4 rounded-full blur-[140px] pointer-events-none pulse-glow" />
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden pt-12">
 
       <div className="relative w-full max-w-sm mt-6 z-10">
         
@@ -68,15 +96,28 @@ export default function AuthPage() {
         <div className="glass rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass relative">
           
           {/* Tab selector */}
-          <div className="flex rounded-2xl overflow-hidden border border-border bg-void/50 p-1 mb-6 font-sans text-xs">
+          <div className="flex rounded-2xl relative border border-white/[0.08] bg-white/[0.04] p-1 mb-6 font-sans text-xs" ref={containerRef}>
+            {/* iOS Liquid Sliding Tab Indicator */}
+            <div
+              className="absolute bg-accent/20 border border-accent/40 rounded-xl pointer-events-none transition-all duration-[300ms] ease-[cubic-bezier(0.25,1,0.5,1)] shadow-[0_0_12px_rgba(0,210,255,0.15)]"
+              style={{
+                transform: `translate3d(${indicatorStyle.left}px, -50%, 0)`,
+                width: `${indicatorStyle.width}px`,
+                height: `${indicatorStyle.height}px`,
+                top: '50%',
+                opacity: indicatorStyle.opacity,
+                transitionProperty: 'transform, width, opacity',
+              }}
+            />
             {['login', 'register'].map(m => (
               <button
                 key={m}
                 type="button"
+                data-active={mode === m}
                 onClick={() => { setMode(m); setError(''); setConfirmPassword(''); }}
-                className={`flex-1 py-2 font-bold rounded-xl transition-all duration-200 ${
+                className={`flex-1 py-2 font-bold rounded-xl btn-liquid relative z-10 text-center ${
                   mode === m
-                    ? 'bg-accent text-void shadow-glow-sm font-extrabold'
+                    ? 'text-accent'
                     : 'text-text-secondary hover:text-white'
                 }`}
               >
@@ -137,7 +178,7 @@ export default function AuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-accent to-teal text-white font-bold tracking-wider rounded-xl shadow-glow hover:shadow-[0_0_25px_rgba(0,210,255,0.45)] transition-all uppercase text-[11px] font-sans mt-4 hover:scale-[1.01]"
+              className="w-full py-3.5 text-white font-bold tracking-wider rounded-2xl btn-liquid-glass uppercase text-[11px] font-sans mt-4"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -157,7 +198,7 @@ export default function AuthPage() {
             {mode === 'login' ? "New user? " : 'Already have an account? '}
             <button
               onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setConfirmPassword(''); }}
-              className="text-accent font-bold transition-colors uppercase tracking-wider underline decoration-accent/30 decoration-2 underline-offset-4 ml-1 text-[11px]"
+              className="text-accent font-bold transition-colors uppercase tracking-wider underline decoration-accent/30 decoration-2 underline-offset-4 ml-1 text-[11px] btn-liquid"
             >
               {mode === 'login' ? 'Register' : 'Sign In'}
             </button>

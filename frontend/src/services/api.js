@@ -63,6 +63,15 @@ export const getMe = async () => {
   return res.data;
 };
 
+export const updateProfile = async ({ username, email, profilePhoto }) => {
+  const res = await api.post('/api/auth/update', {
+    username,
+    email,
+    profile_photo: profilePhoto
+  });
+  return res.data;
+};
+
 // ── Speech-to-Text ───────────────────────────────────────────────
 export const transcribeAudio = async (audioBlob) => {
   const formData = new FormData();
@@ -121,8 +130,8 @@ export const clearHistory = async (sessionId) => {
   return res.data;
 };
 
-export const listSessions = async () => {
-  const res = await api.get('/api/history');
+export const listSessions = async (config = {}) => {
+  const res = await api.get('/api/history/', config);
   return res.data.sessions;
 };
 

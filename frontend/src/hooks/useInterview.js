@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { sendChatMessage, synthesizeSpeech, transcribeAudio, getOpeningMessage, getHistory } from '../services/api';
 
@@ -140,26 +140,57 @@ export default function useInterview() {
   // ── load a past session ──────────────────────────────────────────
   const loadSession = useCallback(async (pastSessionId, pastMode) => {
     stopAudio();
-    setIsLoading(true);
     setError(null);
     setSessionId(pastSessionId);
     setMode(pastMode || 'dsa');
     setFeedback(null);
 
+    // Try loading from localStorage cache first to bypass loading screen
+    const cacheKey = `vai_session_cache_${pastSessionId}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    let hasLoadedFromCache = false;
+
+    if (cachedData) {
+      try {
+        const parsed = JSON.parse(cachedData);
+        if (parsed && parsed.messages) {
+          setMessages(parsed.messages.map(m => ({
+            id: uuidv4(),
+            role: m.role,
+            content: m.content,
+            timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+            feedback: m.feedback || null
+          })));
+          hasLoadedFromCache = true;
+        }
+      } catch (e) {
+        console.error("Failed parsing cached session", e);
+      }
+    }
+
+    if (!hasLoadedFromCache) {
+      setIsLoading(true);
+    }
+
     try {
       const data = await getHistory(pastSessionId);
       if (data && data.messages) {
-        setMessages(data.messages.map(m => ({
+        const parsedMessages = data.messages.map(m => ({
           id: uuidv4(),
           role: m.role,
           content: m.content,
           timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
           feedback: m.feedback || null
-        })));
+        }));
+        setMessages(parsedMessages);
+        // Update cache
+        localStorage.setItem(cacheKey, JSON.stringify({ messages: data.messages }));
       }
     } catch (err) {
       console.error(err);
-      setError("Failed to load session history.");
+      if (!hasLoadedFromCache) {
+        setError("Failed to load session history.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -172,6 +203,22 @@ export default function useInterview() {
     setFeedback(null);
     setError(null);
   }, [stopAudio]);
+
+  // Auto-cache active session messages to localStorage (deferred to idle time — never block the UI)
+  useEffect(() => {
+    if (sessionId && messages.length > 0) {
+      const save = () => {
+        try {
+          localStorage.setItem(`vai_session_cache_${sessionId}`, JSON.stringify({ messages }));
+        } catch (_) {}
+      };
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(save, { timeout: 3000 });
+      } else {
+        setTimeout(save, 200);
+      }
+    }
+  }, [messages, sessionId]);
 
   return {
     messages, isLoading, isPlaying, feedback,

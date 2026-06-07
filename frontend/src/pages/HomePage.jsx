@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { checkHealth } from '../services/api';
 
@@ -104,6 +104,10 @@ const MODES = [
 export default function HomePage() {
   const navigate = useNavigate();
   const [backendStatus, setBackendStatus] = useState('checking');
+  const [selectedMode, setSelectedMode] = useState('dsa');
+  const [hoveredMode, setHoveredMode] = useState(null);
+  const modesContainerRef = useRef(null);
+  const [modesIndicator, setModesIndicator] = useState({ left: 0, top: 0, width: 0, height: 0, opacity: 0 });
 
   useEffect(() => {
     checkHealth().then(data => {
@@ -111,12 +115,44 @@ export default function HomePage() {
     });
   }, []);
 
-  return (
-    <div className="pt-24 min-h-screen relative overflow-hidden bg-void dot-grid px-4 md:px-8 flex flex-col justify-between">
-      
-      {/* Background ambient light overlay */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-teal/5 rounded-full blur-[180px] pointer-events-none pulse-glow" />
+  // Update dynamic sliding indicator coordinates for module selector
+  useEffect(() => {
+    const updateIndicator = () => {
+      const container = modesContainerRef.current;
+      if (!container) return;
 
+      const activeChild = container.querySelector('[data-active="true"]');
+      if (activeChild) {
+        setModesIndicator({
+          left: activeChild.offsetLeft,
+          top: activeChild.offsetTop,
+          width: activeChild.offsetWidth,
+          height: activeChild.offsetHeight,
+          opacity: 1,
+        });
+      } else {
+        setModesIndicator(prev => ({ ...prev, opacity: 0 }));
+      }
+    };
+
+    updateIndicator();
+
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [selectedMode, hoveredMode]);
+
+  const handleModeClick = (modeId) => {
+    setSelectedMode(modeId);
+    setTimeout(() => {
+      navigate(`/interview?mode=${modeId}`);
+    }, 280);
+  };
+
+  return (
+    <div className="pt-24 min-h-screen relative overflow-hidden px-4 md:px-8 flex flex-col justify-between">
+      
       {/* ── HERO BANNER ── */}
       <section className="relative w-full max-w-[94%] xl:max-w-[1440px] mx-auto flex flex-col items-center text-center pt-10 pb-20 flex-1 justify-center z-10">
         
@@ -158,11 +194,11 @@ export default function HomePage() {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center font-mono text-xs w-full sm:w-auto">
           <button
-            onClick={() => navigate('/interview')}
+            onClick={() => navigate(`/interview?mode=${selectedMode}`)}
             disabled={backendStatus !== 'online'}
-            className={`px-8 py-3.5 bg-gradient-to-r from-accent to-teal text-white font-bold tracking-widest rounded-xl transition-all uppercase ${
+            className={`px-8 py-3.5 text-white font-bold tracking-widest rounded-2xl btn-liquid-glass uppercase ${
               backendStatus === 'online'
-                ? 'shadow-glow hover:shadow-[0_0_25px_rgba(0,210,255,0.45)] hover:scale-[1.02] cursor-pointer'
+                ? 'cursor-pointer'
                 : 'opacity-40 cursor-not-allowed'
             }`}
           >
@@ -170,7 +206,7 @@ export default function HomePage() {
           </button>
           <a
             href="#modes"
-            className="px-8 py-3.5 border border-border bg-void/50 text-text-secondary hover:text-white hover:border-accent/40 rounded-xl transition-all uppercase"
+            className="px-8 py-3.5 border border-white/[0.08] bg-white/[0.04] text-text-secondary hover:text-white hover:border-accent/40 rounded-2xl btn-liquid uppercase"
           >
             Select Modules
           </a>
@@ -217,21 +253,58 @@ export default function HomePage() {
           <p className="text-text-muted text-xs font-mono mt-2 uppercase tracking-widest">Select specific training protocols</p>
         </div>
         
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {MODES.map(mode => (
-            <button
-              key={mode.id}
-              onClick={() => navigate(`/interview?mode=${mode.id}`)}
-              className="glass futuristic-card rounded-2xl p-6 text-left hover:-translate-y-1 transition-all group relative"
-            >
-              <div className="text-[9px] font-mono opacity-30 text-text-muted absolute top-4 right-4">{mode.code}</div>
-              <div className="w-10 h-10 rounded-xl bg-void border border-border/80 flex items-center justify-center mb-4 text-text-secondary group-hover:border-accent/40 group-hover:text-accent transition-colors">
-                {mode.icon}
-              </div>
-              <h3 className="font-display font-bold text-white text-sm mb-2 uppercase tracking-wide group-hover:text-accent transition-colors">{mode.label}</h3>
-              <p className="text-xs text-text-secondary leading-relaxed font-sans">{mode.desc}</p>
-            </button>
-          ))}
+        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto relative p-1" ref={modesContainerRef}>
+          {/* iOS Liquid Sliding Tab Indicator */}
+          <div
+            className="absolute bg-accent/[0.10] border border-accent/30 rounded-[22px] pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
+            style={{
+              transform: `translate3d(${modesIndicator.left}px, ${modesIndicator.top}px, 0)`,
+              width: `${modesIndicator.width}px`,
+              height: `${modesIndicator.height}px`,
+              left: 0,
+              top: 0,
+              opacity: modesIndicator.opacity,
+              transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
+            }}
+          />
+
+          {MODES.map(mode => {
+            const isActive = hoveredMode ? hoveredMode === mode.id : selectedMode === mode.id;
+            
+            return (
+              <button
+                key={mode.id}
+                data-active={isActive}
+                onMouseEnter={() => setHoveredMode(mode.id)}
+                onMouseLeave={() => setHoveredMode(null)}
+                onClick={() => handleModeClick(mode.id)}
+                className={`
+                  flex items-center gap-4 p-5 rounded-[22px] border text-left
+                  group w-full btn-liquid relative z-10 transition-all cursor-pointer
+                  ${isActive
+                    ? 'border-transparent text-accent'
+                    : 'border-white/[0.06] text-text-secondary bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06] hover:text-white'
+                  }
+                `}
+              >
+                {/* Icon Squircle Container */}
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${
+                  isActive 
+                    ? 'bg-[#070a13]/80 border border-accent/40 text-accent shadow-sm shadow-accent/10' 
+                    : 'bg-void border border-border/85 text-text-secondary group-hover:text-accent group-hover:border-accent/30'
+                }`}>
+                  {mode.icon}
+                </div>
+                
+                {/* Text Block */}
+                <div className="min-w-0 flex-1 relative">
+                  <div className="text-[9px] font-mono opacity-30 text-text-muted absolute -top-1.5 right-0">{mode.code}</div>
+                  <div className="text-xs font-mono font-bold leading-tight uppercase tracking-wider">{mode.label}</div>
+                  <div className="text-[10.5px] text-text-muted mt-1.5 leading-relaxed font-sans">{mode.desc}</div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -286,3 +359,4 @@ function MockMessage({ role, text }) {
     </div>
   );
 }
+
