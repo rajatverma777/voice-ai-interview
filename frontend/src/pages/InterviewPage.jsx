@@ -9,6 +9,14 @@ import useVoiceRecorder from '../hooks/useVoiceRecorder';
 import useInterview from '../hooks/useInterview';
 import { getQuestionHint } from '../services/api';
 
+const VOICE_LABELS = {
+  'en-US-JennyNeural': 'Friendly Female (Jenny)',
+  'en-US-AriaNeural': 'Warm Female (Aria)',
+  'en-US-GuyNeural': 'Natural Male (Guy)',
+  'en-GB-SoniaNeural': 'British Female (Sonia)',
+  'en-GB-RyanNeural': 'British Male (Ryan)'
+};
+
 export default function InterviewPage() {
   const [searchParams] = useSearchParams();
   const initialMode = searchParams.get('mode') || 'dsa';
@@ -21,6 +29,7 @@ export default function InterviewPage() {
   const [activeHint, setActiveHint] = useState('');
   const [showHintModal, setShowHintModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
 
   const [settings, setSettings] = useState({
@@ -99,6 +108,37 @@ export default function InterviewPage() {
       window.removeEventListener('resize', updateIndicator);
     };
   }, [activeInputMode, sessionStarted]);
+
+  const controlsContainerRef = useRef(null);
+  const [controlsIndicator, setControlsIndicator] = useState({ left: 0, width: 0, height: 0, opacity: 0 });
+  const [hoveredControl, setHoveredControl] = useState(null);
+
+  // Update controls sliding indicator dynamically
+  useEffect(() => {
+    const updateIndicator = () => {
+      const container = controlsContainerRef.current;
+      if (!container) return;
+
+      const activeChild = container.querySelector('[data-active="true"]');
+      if (activeChild) {
+        setControlsIndicator({
+          left: activeChild.offsetLeft,
+          width: activeChild.offsetWidth,
+          height: activeChild.offsetHeight,
+          opacity: 1,
+        });
+      } else {
+        setControlsIndicator(prev => ({ ...prev, opacity: 0 }));
+      }
+    };
+
+    updateIndicator();
+
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [hoveredControl]);
 
   const {
     isRecording, audioBlob, error: recorderError, volume,
@@ -181,6 +221,20 @@ export default function InterviewPage() {
     }
     return () => clearInterval(interval);
   }, [sessionStarted, isLoading]);
+
+  // Close preferences dropdown on outside click
+  useEffect(() => {
+    const handler = e => {
+      if (!e.target.closest('#preferences-container')) {
+        setShowSettingsModal(false);
+        setVoiceDropdownOpen(false);
+      }
+    };
+    if (showSettingsModal) {
+      document.addEventListener('mousedown', handler);
+    }
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showSettingsModal]);
 
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
@@ -283,7 +337,7 @@ export default function InterviewPage() {
           {/* Difficulty Selector */}
           <div className="font-mono">
             <p className="text-[9px] text-text-muted mb-2 font-bold tracking-widest uppercase">Difficulty Level</p>
-            <div className={`flex rounded-full relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px] transition-all duration-300 ${!(sessionStarted || messages.length > 0) ? 'hover:border-accent/30' : 'opacity-60'}`} ref={difficultyContainerRef}>
+            <div className={`flex rounded-full relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px] card-liquid transition-all duration-300 ${!(sessionStarted || messages.length > 0) ? 'hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)]' : 'opacity-60'}`} ref={difficultyContainerRef}>
               {/* iOS Liquid Sliding Tab Indicator */}
               <div
                 className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
@@ -304,7 +358,7 @@ export default function InterviewPage() {
                     disabled={sessionStarted || messages.length > 0}
                     onMouseEnter={() => setHoveredDifficulty(d)}
                     onMouseLeave={() => setHoveredDifficulty(null)}
-                    onClick={() => setDifficulty(d)}
+                    onMouseDown={(e) => { e.preventDefault(); setDifficulty(d); }}
                     className={`flex-1 py-1.5 rounded-full text-xs font-semibold tracking-wide btn-liquid z-10 relative border transition-all duration-300 capitalize text-center ${
                       isActive
                         ? 'border-transparent text-accent'
@@ -322,14 +376,14 @@ export default function InterviewPage() {
             {!sessionStarted ? (
               messages.length > 0 ? (
                 <button
-                  onClick={handleResumeSessionClick}
+                  onMouseDown={(e) => { e.preventDefault(); handleResumeSessionClick(); }}
                   className="w-full py-3.5 text-white font-extrabold rounded-2xl btn-liquid-glass uppercase tracking-wider"
                 >
                   Resume Interview
                 </button>
               ) : (
                 <button
-                  onClick={handleStartSession}
+                  onMouseDown={(e) => { e.preventDefault(); handleStartSession(); }}
                   className="w-full py-3.5 text-white font-extrabold rounded-2xl btn-liquid-glass uppercase tracking-wider"
                 >
                   Start Session
@@ -337,7 +391,7 @@ export default function InterviewPage() {
               )
             ) : (
               <button
-                onClick={handleClearSession}
+                onMouseDown={(e) => { e.preventDefault(); handleClearSession(); }}
                 className="w-full py-3.5 rounded-2xl btn-liquid-glass-danger uppercase tracking-wider"
               >
                 End Session
@@ -348,7 +402,7 @@ export default function InterviewPage() {
           {sessionStarted && (
             <div className="font-mono">
               <p className="text-[9px] text-text-muted mb-2 font-bold tracking-widest uppercase">Input Mode</p>
-              <div className="flex rounded-full relative border border-white/[0.08] hover:border-accent/30 bg-white/[0.04] p-1 text-[11px] transition-all duration-300" ref={inputModeContainerRef}>
+              <div className="flex rounded-full relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px] card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)] transition-all duration-300" ref={inputModeContainerRef}>
                 {/* iOS Liquid Sliding Tab Indicator */}
                 <div
                   className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
@@ -368,7 +422,7 @@ export default function InterviewPage() {
                       data-active={isActive}
                       onMouseEnter={() => setHoveredInputMode(m)}
                       onMouseLeave={() => setHoveredInputMode(null)}
-                      onClick={() => setInputMode(m)}
+                      onMouseDown={(e) => { e.preventDefault(); setInputMode(m); }}
                       className={`flex-1 py-1.5 rounded-full text-xs font-semibold tracking-wide btn-liquid z-10 relative border transition-all duration-300 capitalize text-center ${
                         isActive
                           ? 'border-transparent text-accent'
@@ -417,7 +471,7 @@ export default function InterviewPage() {
         <div className="px-6 py-4 flex items-center justify-between font-mono bg-transparent z-20 gap-4">
           
           {/* Left Pill Group */}
-          <div className="glass rounded-full px-3 py-1.5 flex items-center gap-4 shadow-glass card-liquid hover:border-accent/35 hover:shadow-[0_0_15px_rgba(0,210,255,0.06)]">
+          <div className="bg-[#08080a]/10 backdrop-blur-[2px] border border-white/[0.06] rounded-full px-3 py-1.5 flex items-center gap-4 shadow-glass card-liquid hover:border-accent/35 hover:shadow-[0_0_15px_rgba(0,210,255,0.06)]">
             <button
               onClick={() => setShowSidebar(v => !v)}
               className="w-8 h-8 rounded-full hover:bg-white/5 border border-transparent hover:border-border flex items-center justify-center text-text-secondary hover:text-white btn-liquid"
@@ -442,7 +496,7 @@ export default function InterviewPage() {
           </div>
 
           {/* Right Pill Group */}
-          <div className="glass rounded-full p-1.5 flex items-center gap-2 shadow-glass card-liquid hover:border-accent/35 hover:shadow-[0_0_15px_rgba(0,210,255,0.06)]">
+          <div id="preferences-container" className="bg-[#08080a]/10 backdrop-blur-[2px] border border-white/[0.06] rounded-full p-1.5 flex items-center gap-2 shadow-glass card-liquid hover:border-accent/35 hover:shadow-[0_0_15px_rgba(0,210,255,0.06)] relative">
             {isPlaying && (
               <button
                 onClick={stopAudio}
@@ -455,7 +509,7 @@ export default function InterviewPage() {
 
             {/* Settings Trigger Gear Button */}
             <button
-              onClick={() => setShowSettingsModal(true)}
+              onClick={() => setShowSettingsModal(v => !v)}
               className="w-8 h-8 rounded-full hover:bg-white/5 border border-transparent hover:border-border flex items-center justify-center text-text-secondary hover:text-white btn-liquid"
               title="Adjust preferences"
             >
@@ -464,6 +518,104 @@ export default function InterviewPage() {
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
             </button>
+
+            {/* Dropdown Preferences Modal */}
+            {showSettingsModal && (
+              <div className="absolute right-0 top-full mt-3 w-72 bg-[#08080a]/35 backdrop-blur-[2px] rounded-3xl border border-accent/30 p-5 shadow-glow z-50 animate-scale-in text-white">
+                <button
+                  onClick={() => setShowSettingsModal(false)}
+                  className="absolute top-4 right-4 text-text-muted hover:text-white btn-liquid text-sm"
+                >
+                  ✕
+                </button>
+                <div className="flex items-center gap-2.5 mb-6">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                  </svg>
+                  <h4 className="font-display font-bold text-white text-sm tracking-wide uppercase">Preferences</h4>
+                </div>
+
+                <div className="space-y-5">
+                  {/* Voice select */}
+                  <div className="space-y-2 text-left relative">
+                    <label className="text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider block">AI Voice Model</label>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); setVoiceDropdownOpen(v => !v); }}
+                      className="w-full bg-void/50 border border-border/85 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-accent/60 transition-colors font-sans flex items-center justify-between hover:border-accent/30"
+                    >
+                      <span>{VOICE_LABELS[settings.voice || 'en-US-JennyNeural']}</span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`transition-transform duration-200 ${voiceDropdownOpen ? 'rotate-180' : ''}`}>
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
+                    </button>
+                    
+                    {voiceDropdownOpen && (
+                      <div className="absolute left-0 right-0 mt-1.5 bg-[#08080a] border border-border/85 rounded-xl overflow-hidden z-[60] shadow-2xl p-1 space-y-0.5 animate-scale-in">
+                        {Object.entries(VOICE_LABELS).map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              updateSetting('voice', value);
+                              setVoiceDropdownOpen(false);
+                            }}
+                            className={`w-full px-3 py-2 text-left text-[11px] rounded-lg transition-colors hover:bg-accent/10 hover:text-accent font-sans ${
+                              (settings.voice || 'en-US-JennyNeural') === value ? 'text-accent bg-accent/5 font-semibold' : 'text-text-secondary'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Voice Speed */}
+                  <div className="space-y-2 text-left">
+                    <div className="flex justify-between items-center text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider">
+                      <span>Speech Speed</span>
+                      <span className="text-accent font-semibold">{settings.voiceSpeed || 1.0}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.8"
+                      max="1.5"
+                      step="0.05"
+                      value={settings.voiceSpeed || 1.0}
+                      onChange={e => updateSetting('voiceSpeed', parseFloat(e.target.value))}
+                      className="w-full h-1 bg-void/50 rounded-lg appearance-none cursor-pointer accent-accent"
+                    />
+                  </div>
+
+                  {/* Auto play */}
+                  <div className="flex items-center justify-between p-3.5 bg-void/10 border border-border/85 rounded-2xl">
+                    <div className="text-left font-sans">
+                      <label className="text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider block">Autoplay Audio</label>
+                      <span className="text-[9.5px] text-text-muted font-mono">Speak responses automatically</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={settings.autoPlay !== false}
+                        onChange={e => updateSetting('autoPlay', e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-void/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-text-secondary after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent peer-checked:after:bg-void/50" />
+                    </label>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowSettingsModal(false)}
+                  className="w-full py-3 text-xs font-mono font-bold rounded-xl btn-liquid-glass tracking-wider uppercase mt-6"
+                >
+                  Save Settings
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -499,7 +651,7 @@ export default function InterviewPage() {
               <div className="flex flex-col items-center gap-4 relative">
                 <div className="flex items-center justify-center gap-8 w-full">
                   <button
-                    onClick={handleGetHint}
+                    onMouseDown={(e) => { e.preventDefault(); handleGetHint(); }}
                     disabled={!isHintSkipActive}
                     className={`px-5 py-2 border text-xs font-semibold rounded-full btn-liquid flex items-center gap-2 font-sans
                       ${isHintSkipActive
@@ -522,7 +674,7 @@ export default function InterviewPage() {
                   />
 
                   <button
-                    onClick={() => sendMessage('next question')}
+                    onMouseDown={(e) => { e.preventDefault(); sendMessage('next question'); }}
                     disabled={!isHintSkipActive}
                     className={`px-5 py-2 border text-xs font-semibold rounded-full btn-liquid flex items-center gap-2 font-sans
                       ${isHintSkipActive
@@ -540,7 +692,7 @@ export default function InterviewPage() {
 
                 {/* Inline Mode Switch button */}
                 <button
-                  onClick={() => setInputMode('text')}
+                  onMouseDown={(e) => { e.preventDefault(); setInputMode('text'); }}
                   className="mt-1 text-[10px] font-mono tracking-wider text-text-muted hover:text-accent flex items-center gap-1.5 px-3 py-1 rounded-full border border-transparent hover:border-accent/20 hover:bg-accent/5 btn-liquid"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -562,19 +714,37 @@ export default function InterviewPage() {
                     className="flex-1 bg-transparent border border-white/[0.06] rounded-full px-5 py-3 text-xs text-white placeholder:text-text-muted focus:outline-none focus:border-accent/80 focus:shadow-[0_0_15px_rgba(0,210,255,0.1)] transition-all disabled:opacity-50 font-sans min-w-0"
                   />
                   
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 relative p-1 rounded-full border border-white/[0.08] bg-white/[0.02] card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)] transition-all duration-300" ref={controlsContainerRef}>
+                    {/* iOS Liquid Sliding Tab Indicator */}
+                    <div
+                      className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
+                      style={{
+                        transform: `translate3d(${controlsIndicator.left}px, -50%, 0)`,
+                        width: `${controlsIndicator.width}px`,
+                        height: `${controlsIndicator.height}px`,
+                        opacity: controlsIndicator.opacity,
+                        transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
+                      }}
+                    />
+
                     <button
                       type="button"
-                      onClick={handleGetHint}
+                      data-active={hoveredControl === 'hint'}
+                      onMouseEnter={() => isHintSkipActive && setHoveredControl('hint')}
+                      onMouseLeave={() => setHoveredControl(null)}
+                      onMouseDown={(e) => { e.preventDefault(); handleGetHint(); }}
                       disabled={!isHintSkipActive}
-                      className={`px-4 py-2 border text-xs font-semibold rounded-full btn-liquid flex items-center gap-1.5 font-sans
+                      className={`px-4 py-2 text-xs font-semibold rounded-full btn-liquid relative z-10 flex items-center gap-1.5 font-sans border transition-all duration-300
                         ${isHintSkipActive
-                          ? "border-accent/30 bg-transparent text-accent hover:border-accent/60 hover:bg-accent/8 hover:text-white cursor-pointer shadow-[0_0_12px_rgba(0,210,255,0.06)]"
-                          : "opacity-25 pointer-events-none border-white/[0.06] bg-transparent text-text-muted"
+                          ? (hoveredControl === 'hint'
+                              ? "border-transparent text-accent hover:text-white"
+                              : "border-white/[0.06] text-text-secondary bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06] hover:text-white cursor-pointer"
+                            )
+                          : "opacity-25 pointer-events-none border-white/[0.06] text-text-muted bg-white/[0.01]"
                         }`}
                       title={isHintSkipActive ? "Request Hint" : "Hint unavailable"}
                     >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isHintSkipActive ? "text-accent" : "text-text-muted"}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isHintSkipActive ? (hoveredControl === 'hint' ? "text-accent animate-pulse" : "text-text-secondary") : "text-text-muted"}>
                         <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/>
                       </svg>
                       <span className="hidden sm:inline">Hint</span>
@@ -582,16 +752,22 @@ export default function InterviewPage() {
                     
                     <button
                       type="button"
-                      onClick={() => sendMessage('next question')}
+                      data-active={hoveredControl === 'skip'}
+                      onMouseEnter={() => isHintSkipActive && setHoveredControl('skip')}
+                      onMouseLeave={() => setHoveredControl(null)}
+                      onMouseDown={(e) => { e.preventDefault(); sendMessage('next question'); }}
                       disabled={!isHintSkipActive}
-                      className={`px-4 py-2 border text-xs font-semibold rounded-full btn-liquid flex items-center gap-1.5 font-sans
+                      className={`px-4 py-2 text-xs font-semibold rounded-full btn-liquid relative z-10 flex items-center gap-1.5 font-sans border transition-all duration-300
                         ${isHintSkipActive
-                          ? "border-indigo-500/30 bg-transparent text-indigo-400 hover:border-indigo-500/60 hover:bg-indigo-500/8 hover:text-white cursor-pointer shadow-[0_0_12px_rgba(99,102,241,0.06)]"
-                          : "opacity-25 pointer-events-none border-white/[0.06] bg-transparent text-text-muted"
+                          ? (hoveredControl === 'skip'
+                              ? "border-transparent text-indigo-400 hover:text-white"
+                              : "border-white/[0.06] text-text-secondary bg-white/[0.03] hover:border-indigo-500/30 hover:bg-white/[0.06] hover:text-white cursor-pointer"
+                            )
+                          : "opacity-25 pointer-events-none border-white/[0.06] text-text-muted bg-white/[0.01]"
                         }`}
                       title={isHintSkipActive ? "Skip question" : "Skip unavailable"}
                     >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isHintSkipActive ? "text-indigo-400" : "text-text-muted"}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isHintSkipActive ? (hoveredControl === 'skip' ? "text-indigo-400" : "text-text-secondary") : "text-text-muted"}>
                         <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
                       </svg>
                       <span className="hidden sm:inline">Skip</span>
@@ -599,8 +775,19 @@ export default function InterviewPage() {
 
                     <button
                       type="submit"
+                      data-active={hoveredControl === 'send'}
+                      onMouseEnter={() => !(isLoading || !typingText.trim()) && setHoveredControl('send')}
+                      onMouseLeave={() => setHoveredControl(null)}
+                      onMouseDown={(e) => { e.preventDefault(); handleTypingSubmit(e); }}
                       disabled={isLoading || !typingText.trim()}
-                      className="px-5 py-2.5 bg-gradient-to-r from-accent to-indigo-500 text-void font-bold text-xs rounded-full disabled:opacity-40 shadow-glow btn-liquid uppercase tracking-wider"
+                      className={`px-5 py-2 text-xs font-bold rounded-full btn-liquid relative z-10 uppercase tracking-wider border transition-all duration-300
+                        ${!(isLoading || !typingText.trim())
+                          ? (hoveredControl === 'send'
+                              ? "border-transparent text-accent hover:text-white"
+                              : "border-white/[0.06] text-text-secondary bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06] hover:text-white cursor-pointer"
+                            )
+                          : "opacity-25 pointer-events-none border-white/[0.06] text-text-muted bg-white/[0.01]"
+                        }`}
                     >
                       Send
                     </button>
@@ -610,7 +797,7 @@ export default function InterviewPage() {
                 {/* Inline Mode Toggle Link below the text input form */}
                 <button
                   type="button"
-                  onClick={() => setInputMode('voice')}
+                  onMouseDown={(e) => { e.preventDefault(); setInputMode('voice'); }}
                   className="text-[10px] font-mono tracking-wider text-text-muted hover:text-accent flex items-center gap-1.5 px-3 py-1 rounded-full border border-transparent hover:border-accent/20 hover:bg-accent/5 btn-liquid"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -664,85 +851,7 @@ export default function InterviewPage() {
         </div>
       )}
 
-      {/* ── Settings Modal ── */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/75 backdrop-blur-sm animate-fade-in font-sans">
-          <div className="glass-premium max-w-sm w-full mx-4 rounded-3xl border border-accent/30 p-6 shadow-glow relative animate-scale-in">
-            <button
-              onClick={() => setShowSettingsModal(false)}
-              className="absolute top-4 right-4 text-text-muted hover:text-white btn-liquid text-sm"
-            >
-              ✕
-            </button>
-            <div className="flex items-center gap-2.5 mb-6">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-              </svg>
-              <h4 className="font-display font-bold text-white text-sm tracking-wide uppercase">Preferences</h4>
-            </div>
 
-            <div className="space-y-5">
-              {/* Voice select */}
-              <div className="space-y-2 text-left">
-                <label className="text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider block">AI Voice Model</label>
-                <select
-                  value={settings.voice || 'en-US-JennyNeural'}
-                  onChange={e => updateSetting('voice', e.target.value)}
-                  className="w-full bg-void border border-border/80 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-accent/60 transition-colors font-sans"
-                >
-                  <option value="en-US-JennyNeural">Friendly Female (Jenny)</option>
-                  <option value="en-US-AriaNeural">Warm Female (Aria)</option>
-                  <option value="en-US-GuyNeural">Natural Male (Guy)</option>
-                  <option value="en-GB-SoniaNeural">British Female (Sonia)</option>
-                  <option value="en-GB-RyanNeural">British Male (Ryan)</option>
-                </select>
-              </div>
-
-              {/* Voice Speed */}
-              <div className="space-y-2 text-left">
-                <div className="flex justify-between items-center text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider">
-                  <span>Speech Speed</span>
-                  <span className="text-accent font-semibold">{settings.voiceSpeed || 1.0}x</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.8"
-                  max="1.5"
-                  step="0.05"
-                  value={settings.voiceSpeed || 1.0}
-                  onChange={e => updateSetting('voiceSpeed', parseFloat(e.target.value))}
-                  className="w-full h-1 bg-void rounded-lg appearance-none cursor-pointer accent-accent"
-                />
-              </div>
-
-              {/* Auto play */}
-              <div className="flex items-center justify-between p-3.5 bg-void/50 border border-border/80 rounded-2xl">
-                <div className="text-left font-sans">
-                  <label className="text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider block">Autoplay Audio</label>
-                  <span className="text-[9.5px] text-text-muted">Speak responses automatically</span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={settings.autoPlay !== false}
-                    onChange={e => updateSetting('autoPlay', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-void peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-text-secondary after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent peer-checked:after:bg-void" />
-                </label>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowSettingsModal(false)}
-              className="w-full py-3 text-xs font-mono font-bold rounded-xl btn-liquid-glass tracking-wider uppercase mt-6"
-            >
-              Save Settings
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

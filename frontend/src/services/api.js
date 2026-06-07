@@ -131,6 +131,11 @@ export const clearHistory = async (sessionId) => {
   return res.data;
 };
 
+export const clearAllHistory = async () => {
+  const res = await api.delete('/api/history');
+  return res.data;
+};
+
 export const listSessions = async (config = {}) => {
   const res = await api.get('/api/history/', config);
   return res.data.sessions;

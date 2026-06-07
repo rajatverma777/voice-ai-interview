@@ -141,8 +141,8 @@ export default function Navbar() {
           isCollapsed
             ? 'opacity-0 max-w-0 px-0 py-0 overflow-hidden translate-x-12 scale-90 pointer-events-none border-transparent'
             : scrolled
-              ? 'bg-[#08080a]/85 backdrop-blur-2xl border border-white/[0.08] shadow-[0_12px_40px_-10px_rgba(0,0,0,0.5)] px-5 py-2 rounded-full opacity-100 max-w-[400px]'
-              : 'glass rounded-full px-5 py-2 card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)] opacity-100 max-w-[400px]'
+              ? 'bg-[#08080a]/15 backdrop-blur-[2px] border border-white/[0.06] shadow-[0_12px_40px_-10px_rgba(0,0,0,0.5)] px-5 py-2 rounded-full opacity-100 max-w-[400px]'
+              : 'bg-[#08080a]/10 backdrop-blur-[2px] border border-white/[0.06] rounded-full px-5 py-2 card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)] opacity-100 max-w-[400px]'
         }`}
       >
         <div className="flex items-center justify-center gap-2.5 whitespace-nowrap">
@@ -169,18 +169,18 @@ export default function Navbar() {
 
       {/* Right Collapsible Navigation & Menu Capsule Container */}
       <div
-        className={`fixed top-4 z-50 transition-all duration-500 right-[4%] xl:right-[calc(50%-650px)] flex items-center ${
+        className={`fixed top-4 z-50 transition-all duration-300 ease-out flex items-center ${
           isCollapsed
-            ? 'w-11 h-11 p-0 justify-center rounded-full bg-[#08080a]/90 backdrop-blur-2xl border border-accent/40 shadow-glow active:scale-95'
+            ? 'right-4 md:right-6 xl:right-6 w-11 h-11 p-0 justify-center rounded-full bg-[#08080a]/15 backdrop-blur-[2px] border border-accent/40 shadow-glow active:scale-95'
             : scrolled
-              ? 'bg-[#08080a]/85 backdrop-blur-2xl border border-white/[0.08] shadow-[0_12px_40px_-10px_rgba(0,0,0,0.5)] px-4 py-2 gap-3 rounded-full max-w-[1000px]'
-              : 'glass rounded-full px-4 py-2 card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)] gap-3 max-w-[1000px]'
+              ? 'right-4 md:right-[4%] xl:right-[calc(50%-650px)] bg-[#08080a]/15 backdrop-blur-[2px] border border-white/[0.08] shadow-[0_12px_40px_-10px_rgba(0,0,0,0.5)] px-4 py-2 gap-3 rounded-full max-w-[450px]'
+              : 'right-4 md:right-[4%] xl:right-[calc(50%-650px)] bg-[#08080a]/10 backdrop-blur-[2px] border border-white/[0.06] rounded-full px-4 py-2 card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)] gap-3 max-w-[450px]'
         }`}
       >
-        <div className={`transition-all duration-500 ease-in-out flex items-center gap-2.5 origin-right ${
+        <div className={`transition-all duration-300 ease-out flex items-center gap-2.5 origin-right ${
           isCollapsed
             ? 'max-w-0 opacity-0 pointer-events-none overflow-hidden scale-90 -translate-x-5'
-            : 'max-w-[1000px] opacity-100'
+            : 'max-w-[450px] opacity-100'
         }`}>
           <div className="flex items-center gap-1.5 relative py-0.5" ref={containerRef}>
             {/* iOS Liquid Sliding Tab Indicator */}
@@ -253,7 +253,7 @@ export default function Navbar() {
                   e.stopPropagation();
                   setDropdownOpen(v => !v);
                 }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border hover:border-accent/50 bg-void/50 btn-liquid group font-mono text-xs text-text-secondary hover:text-white"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border hover:border-accent/50 bg-void/15 btn-liquid group font-mono text-xs text-text-secondary hover:text-white"
               >
                 {/* Avatar */}
                 {user?.profile_photo ? (
@@ -263,7 +263,7 @@ export default function Navbar() {
                     className="w-5 h-5 rounded-full object-cover border border-accent/30"
                   />
                 ) : (
-                  <div className="w-5 h-5 rounded-full bg-void border border-accent/30 flex items-center justify-center text-[10px] font-bold text-accent">
+                  <div className="w-5 h-5 rounded-full bg-void/20 border border-accent/30 flex items-center justify-center text-[10px] font-bold text-accent">
                     {initials}
                   </div>
                 )}
@@ -281,34 +281,25 @@ export default function Navbar() {
 
               {/* Dropdown menu */}
               {dropdownOpen && (
-                <div className="absolute right-0 top-full mt-2.5 w-56 bg-surface/95 backdrop-blur-2xl rounded-2xl border border-border/80 shadow-2xl overflow-hidden z-50 animate-scale-in">
-                  {/* User header */}
-                  <div className="px-4 py-3.5 border-b border-border/60 bg-void/40">
-                    <p className="text-xs font-semibold text-white truncate font-display">{user?.username}</p>
-                    <p className="text-[10px] text-text-muted truncate mt-0.5 font-mono">{user?.email}</p>
-                  </div>
-
+                <div className="absolute -right-4 top-full mt-3.5 w-60 z-50 flex flex-col gap-1.5 animate-scale-in text-white">
                   {/* Menu items */}
-                  <div className="p-1.5 space-y-1 font-mono text-xs">
-                    <DropdownItem
-                      icon={<MicIcon />}
-                      label="Start Interview"
-                      onClick={() => { navigate('/interview'); setDropdownOpen(false); }}
-                    />
-                    <DropdownItem
-                      icon={<ProfileIcon />}
-                      label="Profile & Stats"
-                      onClick={() => { navigate('/profile'); setDropdownOpen(false); }}
-                    />
-                    <div className="border-t border-border/50 my-1.5" />
-                    <DropdownItem
-                      icon={loggingOut ? <SpinIcon /> : <LogoutIcon />}
-                      label={loggingOut ? 'Signing Out...' : 'Sign Out'}
-                      onClick={handleLogout}
-                      danger
-                      disabled={loggingOut}
-                    />
-                  </div>
+                  <DropdownItem
+                    icon={<MicIcon />}
+                    label="Start Interview"
+                    onClick={() => { navigate('/interview'); setDropdownOpen(false); }}
+                  />
+                  <DropdownItem
+                    icon={<ProfileIcon />}
+                    label="Profile & Stats"
+                    onClick={() => { navigate('/profile'); setDropdownOpen(false); }}
+                  />
+                  <DropdownItem
+                    icon={loggingOut ? <SpinIcon /> : <LogoutIcon />}
+                    label={loggingOut ? 'Signing Out...' : 'Sign Out'}
+                    onClick={handleLogout}
+                    danger
+                    disabled={loggingOut}
+                  />
                 </div>
               )}
             </div>
@@ -360,19 +351,19 @@ function DropdownItem({ icon, label, onClick, danger, disabled }) {
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl btn-liquid disabled:opacity-50 text-left ${
+      className={`w-full flex items-center gap-3.5 px-5 py-2.5 rounded-full border transition-all duration-300 disabled:opacity-50 text-left font-sans text-xs ${
         danger
-          ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300'
-          : 'text-text-secondary hover:bg-white/5 hover:text-white'
+          ? 'text-red-400 bg-red-500/10 hover:bg-red-500/15 border-red-500/20 hover:border-red-500/40 hover:shadow-[0_0_15px_rgba(239,68,68,0.08)]'
+          : 'text-text-secondary bg-[#08080a]/50 backdrop-blur-[6px] border-white/[0.08] hover:border-accent/30 hover:text-accent hover:bg-accent/5 hover:shadow-[0_0_15px_rgba(0,210,255,0.05)]'
       }`}
     >
-      <span className="opacity-70 flex-shrink-0">{icon}</span>
-      {label}
+      <span className="opacity-80 flex-shrink-0 transition-colors duration-300">{icon}</span>
+      <span className="font-semibold tracking-wide">{label}</span>
     </button>
   );
 }
 
-const MicIcon     = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>;
-const ProfileIcon = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-const LogoutIcon  = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
-const SpinIcon    = () => <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>;
+const MicIcon     = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>;
+const ProfileIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const LogoutIcon  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+const SpinIcon    = () => <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><circle cx="12" cy="12" r="10" strokeOpacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>;

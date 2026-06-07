@@ -213,7 +213,7 @@ export default function HomePage() {
         </div>
 
         {/* HUD IDE Dashboard Mockup */}
-        <div className="mt-20 w-full max-w-2xl glass rounded-2xl border border-border/70 p-6 text-left relative overflow-hidden shadow-2xl">
+        <div className="mt-20 w-full max-w-2xl bg-[#08080a]/10 backdrop-blur-[2px] border border-white/[0.06] rounded-2xl p-6 text-left relative overflow-hidden shadow-2xl">
           {/* Header console */}
           <div className="flex items-center justify-between border-b border-border/60 pb-3 mb-4 font-mono text-[9px] text-text-muted">
             <div className="flex items-center gap-1.5">
@@ -321,7 +321,7 @@ export default function HomePage() {
             <div key={f.title} className="glass-light futuristic-card rounded-2xl p-5 flex flex-col justify-between min-h-[140px]">
               <div>
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-lg bg-void border border-border flex items-center justify-center text-accent">
+                  <div className="w-8 h-8 rounded-lg bg-void/20 border border-border/85 flex items-center justify-center text-accent">
                     {f.icon}
                   </div>
                   <span className="text-[8px] font-mono bg-white/5 border border-border px-2 py-0.5 rounded text-text-muted tracking-widest">{f.tag}</span>
@@ -347,7 +347,7 @@ function MockMessage({ role, text }) {
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start message-enter`}>
       <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[9px] font-bold border ${
-        isUser ? 'border-accent/40 text-accent bg-accent/5' : 'border-border text-text-secondary bg-void'
+        isUser ? 'border-accent/40 text-accent bg-accent/5' : 'border-border text-text-secondary bg-void/20'
       }`}>
         {isUser ? 'USR' : 'AI'}
       </div>

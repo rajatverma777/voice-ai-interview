@@ -21,6 +21,18 @@ async def get_history(session_id: str):
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
 
 
+@router.delete("")
+@router.delete("/")
+async def clear_all_history():
+    """Clear all chat history sessions."""
+    try:
+        db = get_db()
+        result = await db.sessions.delete_many({})
+        return {"message": "All sessions cleared", "deleted_count": result.deleted_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
+
+
 @router.delete("/{session_id}")
 async def clear_history(session_id: str):
     """Clear chat history for a session."""

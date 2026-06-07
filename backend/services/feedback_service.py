@@ -30,13 +30,56 @@ async def analyze_response(user_message: str, ai_response: str, mode: InterviewM
         return None
 
     scores = _compute_scores(user_message, mode)
+    
+    # Extract baseline scores
+    technical = scores["technical"]
+    clarity = scores["clarity"]
+    confidence = scores["confidence"]
+    overall = scores["overall"]
+    suggestions = list(scores["suggestions"])
+
+    ai_res_lower = ai_response.lower()
+    
+    # Check if the AI's response indicates the user was wrong
+    incorrect_indicators = [
+        "incorrect", "wrong", "not correct", "not right", "not quite right",
+        "unfortunately", "that's not correct", "that is not correct", "false"
+    ]
+    
+    # Check if the AI's response indicates the user was correct
+    correct_indicators = [
+        "correct", "perfect", "exactly", "spot on", "excellent", "spot-on",
+        "that's right", "that is right", "indeed"
+    ]
+    
+    is_incorrect = any(ind in ai_res_lower for ind in incorrect_indicators)
+    is_correct = any(ind in ai_res_lower for ind in correct_indicators)
+    
+    # Prioritize negative signals if they appear in text (e.g. "incorrect" override)
+    if any(ind in ai_res_lower for ind in ["incorrect", "wrong", "not correct", "not right"]):
+        is_incorrect = True
+        is_correct = False
+
+    if is_incorrect:
+        # Penalize technical accuracy heavily for wrong answers
+        technical = max(10.0, technical - 30.0)
+        # Penalize confidence slightly because they were wrong
+        confidence = max(30.0, confidence - 20.0)
+        # Recompute overall score with a higher weight on technical correctness (50%)
+        overall = round((technical * 0.5 + clarity * 0.25 + confidence * 0.25), 1)
+        if "Review the concept details and try to restate the answer." not in suggestions:
+            suggestions.insert(0, "Review the concept details and try to restate the answer.")
+    elif is_correct:
+        # Boost score slightly for correct answers
+        technical = min(100.0, technical + 15.0)
+        overall = round((technical * 0.4 + clarity * 0.3 + confidence * 0.3), 1)
 
     return {
-        "technical_accuracy": scores["technical"],
-        "communication_clarity": scores["clarity"],
-        "confidence_level": scores["confidence"],
-        "overall_score": scores["overall"],
-        "suggestions": scores["suggestions"]
+        "technical_accuracy": technical,
+        "communication_clarity": clarity,
+        "confidence_level": confidence,
+        "overall_score": overall,
+        "suggestions": suggestions
     }
 
 

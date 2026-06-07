@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { listSessions, clearHistory } from '../services/api';
+import { listSessions, clearHistory, clearAllHistory } from '../services/api';
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
@@ -111,6 +111,25 @@ export default function ProfilePage() {
     }
   };
 
+  const handleClearAllSessions = async (e) => {
+    e.stopPropagation();
+    if (!window.confirm("WARNING: Purge ALL session logs permanently? This operation is irreversible and all archives will be lost.")) return;
+    try {
+      setLoading(true);
+      await clearAllHistory();
+      // Clear all cached messages and cached metadata list
+      const cachedKeys = Object.keys(localStorage).filter(k => k.startsWith('vai_session_cache_'));
+      cachedKeys.forEach(k => localStorage.removeItem(k));
+      localStorage.removeItem('vai_cached_sessions');
+      
+      fetchHistory(true);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to purge all session records.');
+      setLoading(false);
+    }
+  };
+
   // Stats are shown as N/A now since messages aren't included in the sessions list.
   // They will be populated if sessions have summary fields from the backend.
   const { stats, suggestions, totalExchanges } = React.useMemo(() => {
@@ -193,59 +212,77 @@ export default function ProfilePage() {
           {/* Part 1: User Profile Details (Clickable) */}
           <div
             onClick={handleOpenEditModal}
-            className="glass-profile card-liquid rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass flex-1 flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left relative overflow-hidden cursor-pointer group/profile"
+            className="glass-profile card-liquid rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass flex-1 flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left relative overflow-hidden cursor-pointer group/profile transition-all duration-500 hover:border-accent/40"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-teal/5 via-transparent to-accent/5 pointer-events-none" />
-            
+            {/* Ambient liquid glow blobs */}
+            <div className="absolute -top-12 -left-12 w-48 h-48 bg-accent/5 rounded-full blur-[60px] pointer-events-none group-hover/profile:bg-accent/10 transition-all duration-700 animate-pulse" />
+            <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-indigo/5 rounded-full blur-[60px] pointer-events-none group-hover/profile:bg-indigo/10 transition-all duration-700 animate-pulse delay-500" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-accent/[0.02] via-transparent to-indigo/[0.02] pointer-events-none" />
+
             {/* Edit Indicator Badge */}
-            <div className="absolute top-4 right-4 z-10 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[8px] font-mono text-text-muted uppercase tracking-wider group-hover/profile:border-accent/40 group-hover/profile:text-accent transition-all duration-300">
+            <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.08] text-[9px] font-mono text-text-muted uppercase tracking-widest group-hover/profile:border-accent/40 group-hover/profile:text-accent group-hover/profile:bg-accent/5 hover:shadow-glow transition-all duration-300">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
               </svg>
               <span>Edit Info</span>
             </div>
 
-            {/* Glowing Avatar */}
-            <div className="relative group z-10">
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-accent to-teal blur-md opacity-40 group-hover/profile:opacity-75 transition-opacity duration-300" />
+            {/* Glowing Pulsing Avatar Container */}
+            <div className="relative group/avatar z-10">
+              {/* Ripple Ring 1 */}
+              <div className="absolute -inset-1.5 rounded-2xl bg-gradient-to-tr from-accent to-indigo opacity-20 group-hover/profile:opacity-50 blur-[2px] transition-all duration-500" />
+              {/* Ripple Ring 2 */}
+              <div className="absolute -inset-3 rounded-2xl bg-gradient-to-tr from-accent/30 to-indigo/30 opacity-0 group-hover/profile:opacity-20 blur-[6px] group-hover/profile:scale-105 transition-all duration-500" />
+              
               {user?.profile_photo ? (
                 <img
                   src={user.profile_photo}
                   alt={user?.username}
-                  className="w-20 h-20 rounded-2xl border border-accent/40 object-cover relative z-10"
+                  className="w-20 h-20 rounded-2xl border border-accent/40 object-cover relative z-10 group-hover/profile:border-accent/70 transition-colors duration-500"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-2xl bg-void border border-accent/40 flex items-center justify-center text-2xl font-display font-bold text-accent shadow-inner relative z-10">
+                <div className="w-20 h-20 rounded-2xl bg-void/30 border border-accent/40 flex items-center justify-center text-3xl font-display font-bold text-accent shadow-inner relative z-10 group-hover/profile:border-accent/70 transition-colors duration-500">
                   {initials}
                 </div>
               )}
             </div>
             
-            <div className="space-y-2 z-10">
+            <div className="space-y-2.5 z-10 text-left sm:text-left flex flex-col items-center sm:items-start w-full">
               <div className="flex flex-col sm:flex-row items-center gap-3">
-                <h1 className="text-2xl md:text-3xl font-display font-bold tracking-tight text-white uppercase">
+                <h1 className="text-2xl md:text-3xl font-display font-black tracking-tight text-white uppercase group-hover/profile:text-accent transition-colors duration-300">
                   {user?.username || 'Guest Pilot'}
                 </h1>
-                <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-mono tracking-wider bg-accent/10 border border-accent/30 text-accent uppercase font-bold animate-pulse">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                
+                {/* Active Coach Badge */}
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-mono tracking-widest bg-accent/10 border border-accent/40 text-accent uppercase font-bold shadow-[0_0_15px_rgba(0,210,255,0.05)] transition-all duration-300">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-accent"></span>
+                  </span>
                   Active Coach
                 </span>
               </div>
-              <p className="text-sm text-text-secondary font-mono">{user?.email || 'unregistered@voiceai.com'}</p>
-              <p className="text-[10px] text-text-muted font-mono tracking-widest uppercase">OPERATOR ID: VAI-{user?.user_id?.slice(-6) || '8749'}</p>
+              
+              <div className="space-y-0.5 text-center sm:text-left">
+                <p className="text-xs text-text-secondary/95 font-mono tracking-wide">{user?.email || 'unregistered@voiceai.com'}</p>
+                <p className="text-[10px] text-text-muted font-mono tracking-widest uppercase flex items-center justify-center sm:justify-start gap-1.5">
+                  <span className="text-accent/60">OP_ID //</span>
+                  <span>VAI-{user?.user_id?.slice(-6) || '8749'}</span>
+                </p>
+              </div>
             </div>
           </div>
 
           {/* Part 2: Quick Stats Dashboard */}
-          <div className="glass-profile card-liquid rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass flex flex-row items-center gap-4 font-mono justify-center relative overflow-hidden lg:min-w-[340px]">
+          <div className="glass-profile card-liquid rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass flex flex-row items-stretch gap-4 font-mono justify-center relative overflow-hidden lg:min-w-[340px]">
             <div className="absolute inset-0 bg-gradient-to-l from-accent/5 via-transparent to-teal/5 pointer-events-none" />
             
-            <div className="px-6 py-4 bg-void/45 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-teal/30 transition-colors z-10">
-              <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold">Total Sessions</span>
-              <span className="text-2xl font-display font-black text-white mt-1">{sessions.length}</span>
+            <div className="px-6 py-4 bg-void/10 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-accent/30 transition-colors z-10">
+              <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold whitespace-nowrap">Total Sessions</span>
+              <span className="text-2xl font-display font-black text-accent mt-1">{sessions.length}</span>
             </div>
-            <div className="px-6 py-4 bg-void/45 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-accent/30 transition-colors z-10">
-              <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold">Total Queries</span>
+            <div className="px-6 py-4 bg-void/10 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-accent/30 transition-colors z-10">
+              <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold whitespace-nowrap">Total Queries</span>
               <span className="text-2xl font-display font-black text-accent mt-1">{totalExchanges}</span>
             </div>
           </div>
@@ -333,7 +370,7 @@ export default function ProfilePage() {
                 <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin">
                   {suggestions.length > 0 ? (
                     suggestions.map((s, idx) => (
-                      <div key={idx} className="p-3.5 bg-void/50 border border-border/40 rounded-2xl flex items-start gap-3 text-xs text-text-secondary leading-relaxed hover:border-accent/20 transition-colors">
+                      <div key={idx} className="p-3.5 bg-void/10 border border-border/40 rounded-2xl flex items-start gap-3 text-xs text-text-secondary leading-relaxed hover:border-accent/20 transition-colors">
                         <span className="text-accent text-sm mt-0.5">💡</span>
                         <span>{s}</span>
                       </div>
@@ -351,10 +388,20 @@ export default function ProfilePage() {
             {/* ── RIGHT COLUMN: SESSION LOG ARCHIVES ── */}
             <div className="lg:col-span-2 flex flex-col">
               <div className="glass-profile card-liquid rounded-3xl p-6 border border-border/85 shadow-glass flex-1 flex flex-col">
-                <h2 className="font-display text-sm font-bold text-white tracking-wide uppercase flex items-center gap-2 mb-6">
-                  <span className="w-2 h-2 rounded-full bg-accent" />
-                  Interview Archives
-                </h2>
+                <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
+                  <h2 className="font-display text-sm font-bold text-white tracking-wide uppercase flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-accent" />
+                    Interview Archives
+                  </h2>
+                  {sessions.length > 0 && (
+                    <button
+                      onMouseDown={handleClearAllSessions}
+                      className="px-3.5 py-1.5 text-[10px] font-semibold rounded-xl border border-red-500/20 hover:border-red-500/40 bg-red-500/5 hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-all duration-300 uppercase tracking-wider font-mono btn-liquid"
+                    >
+                      Clear All History
+                    </button>
+                  )}
+                </div>
                 
                 {sessions.length > 0 ? (
                   <div className="space-y-3 overflow-y-auto p-3 -m-3 flex-1 scrollbar-thin">
@@ -370,7 +417,7 @@ export default function ProfilePage() {
                           className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white/[0.03] border border-white/[0.06] rounded-2xl cursor-pointer gap-4 group card-liquid-subtle shadow-sm"
                         >
                           <div className="flex items-center gap-4">
-                            <div className="w-9 h-9 rounded-xl bg-void border border-border/80 flex items-center justify-center text-slate-400 group-hover:border-accent/40 group-hover:text-accent transition-colors">
+                            <div className="w-9 h-9 rounded-xl bg-void/20 border border-border/80 flex items-center justify-center text-slate-400 group-hover:border-accent/40 group-hover:text-accent transition-colors">
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                               </svg>
@@ -381,7 +428,7 @@ export default function ProfilePage() {
                                 <span className="text-sm font-display font-semibold text-white uppercase tracking-wide">
                                   {sess.mode === 'dsa' ? 'Data Structures & Algorithms' : sess.mode === 'system_design' ? 'System Design' : 'Behavioral & HR'}
                                 </span>
-                                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-void border border-border text-text-secondary uppercase">
+                                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-void/20 border border-border text-text-secondary uppercase">
                                   {userMsgCount} Queries
                                 </span>
                               </div>
@@ -390,7 +437,7 @@ export default function ProfilePage() {
                               </div>
                             </div>
                           </div>
-
+ 
                           <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
                             <div className="text-left sm:text-right font-mono">
                               <div className="text-[8px] text-text-muted uppercase tracking-wider font-bold">Overall Score</div>
@@ -403,13 +450,13 @@ export default function ProfilePage() {
                             
                             <div className="flex gap-2.5" onClick={e => e.stopPropagation()}>
                               <button
-                                onClick={() => navigate(`/interview?session_id=${sess.session_id}&mode=${sess.mode}`)}
+                                onMouseDown={() => navigate(`/interview?session_id=${sess.session_id}&mode=${sess.mode}`)}
                                 className="px-4 py-2 text-xs font-semibold rounded-xl btn-liquid-glass uppercase tracking-wide font-mono"
                               >
                                 Resume
                               </button>
                               <button
-                                onClick={(e) => handleDeleteSession(e, sess.session_id)}
+                                onMouseDown={(e) => handleDeleteSession(e, sess.session_id)}
                                 className="p-2 border border-border/80 hover:border-red-500/40 rounded-xl text-text-muted hover:text-red-400 hover:bg-red-500/5 btn-liquid"
                                 title="Purge Record"
                               >
@@ -425,7 +472,7 @@ export default function ProfilePage() {
                     {sessions.length > displayLimit && (
                       <button
                         onClick={() => setDisplayLimit(prev => prev + 10)}
-                        className="w-full mt-4 py-3 text-[11px] font-semibold rounded-xl border border-border/80 hover:border-accent/40 text-text-secondary hover:text-white transition-all duration-200 uppercase tracking-widest font-mono bg-void/35 hover:bg-void/60 shadow-inner"
+                        className="w-full mt-4 py-3 text-[11px] font-semibold rounded-xl border border-border/80 hover:border-accent/40 text-text-secondary hover:text-white transition-all duration-200 uppercase tracking-widest font-mono bg-void/10 hover:bg-void/25 shadow-inner"
                       >
                         Show More Sessions ({sessions.length - displayLimit} remaining)
                       </button>
