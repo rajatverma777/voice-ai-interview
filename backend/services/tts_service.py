@@ -5,17 +5,17 @@ from config import get_settings
 settings = get_settings()
 
 
-async def generate_speech(text: str) -> bytes:
+async def generate_speech(text: str, voice: str = "en-US-JennyNeural", rate: str = "+0%") -> bytes:
     """Convert text to speech. Tries edge-tts (neural) first, falls back to gTTS."""
     try:
-        return await _edge_tts(text)
+        return await _edge_tts(text, voice, rate)
     except Exception as e:
         print(f"edge-tts failed ({e}), falling back to gTTS")
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _gtts_tts, text)
 
 
-async def _edge_tts(text: str) -> bytes:
+async def _edge_tts(text: str, voice: str = "en-US-JennyNeural", rate: str = "+0%") -> bytes:
     """High-quality Microsoft neural TTS via edge-tts (free, no API key needed).
     
     Voice options:
@@ -28,9 +28,8 @@ async def _edge_tts(text: str) -> bytes:
     import edge_tts
 
     clean = _clean_for_speech(text)
-    voice = "en-US-JennyNeural"
 
-    communicate = edge_tts.Communicate(clean, voice=voice, rate="+0%", pitch="+0Hz")
+    communicate = edge_tts.Communicate(clean, voice=voice, rate=rate, pitch="+0Hz")
 
     buf = io.BytesIO()
     async for chunk in communicate.stream():

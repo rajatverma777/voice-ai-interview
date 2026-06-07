@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function ChatBubble({ message }) {
+export default function ChatBubble({ message, playAudio }) {
   const { role, content, timestamp, feedback } = message;
   const isUser = role === 'user';
   const [showFeedback, setShowFeedback] = useState(false);
@@ -33,6 +33,18 @@ export default function ChatBubble({ message }) {
         {/* Timestamp & Diagnostic Toggle */}
         <div className={`flex items-center gap-3 font-mono text-[9px] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
           <span className="text-text-muted">{timeStr}</span>
+          {!isUser && playAudio && (
+            <button
+              onClick={() => playAudio(content, true)}
+              className="text-text-secondary hover:text-accent transition-colors flex items-center gap-1 font-bold"
+              title="Repeat Audio Speech"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+              [Speak]
+            </button>
+          )}
           {!isUser && feedback && (
             <button
               onClick={() => setShowFeedback(v => !v)}

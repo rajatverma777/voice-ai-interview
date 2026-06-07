@@ -23,11 +23,20 @@ export default function useInterview() {
     ]);
   }, []);
 
-  const playAudio = useCallback(async (text) => {
+  const playAudio = useCallback(async (text, isManual = false) => {
+    const settingsStr = localStorage.getItem('vai_settings');
+    const settings = settingsStr ? JSON.parse(settingsStr) : {};
+
+    if (!isManual && settings.autoPlay === false) {
+      return;
+    }
+
     try {
       setIsPlaying(true);
       if (currentAudioUrl.current) URL.revokeObjectURL(currentAudioUrl.current);
-      const audioUrl = await synthesizeSpeech(text);
+      const voice = settings.voice || 'en-US-JennyNeural';
+      const speed = settings.voiceSpeed !== undefined ? parseFloat(settings.voiceSpeed) : 1.0;
+      const audioUrl = await synthesizeSpeech(text, voice, speed);
       currentAudioUrl.current = audioUrl;
       const audio = new Audio(audioUrl);
       audioRef.current = audio;

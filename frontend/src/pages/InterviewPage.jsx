@@ -20,19 +20,46 @@ export default function InterviewPage() {
   
   const [activeHint, setActiveHint] = useState('');
   const [showHintModal, setShowHintModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
+
+  const [settings, setSettings] = useState({
+    voice: 'en-US-JennyNeural',
+    voiceSpeed: 1.0,
+    autoPlay: true,
+  });
 
   const chatEndRef = useRef(null);
 
   const {
     messages, isLoading, isPlaying, feedback, mode, difficulty, error,
-    sendMessage, processAudio, stopAudio, startSession, loadSession, clearSession, setMode, setDifficulty,
+    sendMessage, processAudio, playAudio, stopAudio, startSession, loadSession, clearSession, setMode, setDifficulty,
   } = useInterview();
 
   const {
     isRecording, audioBlob, error: recorderError, volume,
     startRecording, stopRecording, resetRecording,
   } = useVoiceRecorder();
+
+  // Load settings from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('vai_settings');
+    if (saved) {
+      try {
+        setSettings(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
+
+  const updateSetting = (key, value) => {
+    setSettings(prev => {
+      const updated = { ...prev, [key]: value };
+      localStorage.setItem('vai_settings', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -316,6 +343,18 @@ export default function InterviewPage() {
               Pause TTS
             </button>
           )}
+
+          {/* Settings Trigger Gear Button */}
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className={`${!isPlaying ? 'ml-auto' : ''} w-9 h-9 rounded-xl hover:bg-white/5 border border-transparent hover:border-border flex items-center justify-center text-text-secondary hover:text-white transition-all`}
+            title="Adjust preferences"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
         </div>
 
         {/* Workspace Chat Console */}
@@ -325,7 +364,7 @@ export default function InterviewPage() {
           ) : (
             <>
               {messages.map(msg => (
-                <ChatBubble key={msg.id} message={msg} />
+                <ChatBubble key={msg.id} message={msg} playAudio={playAudio} />
               ))}
               {isLoading && <TypingIndicator />}
             </>
@@ -454,6 +493,86 @@ export default function InterviewPage() {
               className="w-full py-3 bg-gradient-to-r from-accent to-teal text-white font-bold rounded-xl hover:shadow-glow transition-all text-xs font-mono tracking-wider uppercase"
             >
               Close Portal
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Settings Modal ── */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/75 backdrop-blur-sm animate-fade-in font-sans">
+          <div className="glass-premium max-w-sm w-full mx-4 rounded-3xl border border-accent/30 p-6 shadow-glow relative animate-scale-in">
+            <button
+              onClick={() => setShowSettingsModal(false)}
+              className="absolute top-4 right-4 text-text-muted hover:text-white transition-colors text-sm"
+            >
+              ✕
+            </button>
+            <div className="flex items-center gap-2.5 mb-6">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              <h4 className="font-display font-bold text-white text-sm tracking-wide uppercase">Preferences</h4>
+            </div>
+
+            <div className="space-y-5">
+              {/* Voice select */}
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider block">AI Voice Model</label>
+                <select
+                  value={settings.voice || 'en-US-JennyNeural'}
+                  onChange={e => updateSetting('voice', e.target.value)}
+                  className="w-full bg-void border border-border/80 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-accent/60 transition-colors font-sans"
+                >
+                  <option value="en-US-JennyNeural">Friendly Female (Jenny)</option>
+                  <option value="en-US-AriaNeural">Warm Female (Aria)</option>
+                  <option value="en-US-GuyNeural">Natural Male (Guy)</option>
+                  <option value="en-GB-SoniaNeural">British Female (Sonia)</option>
+                  <option value="en-GB-RyanNeural">British Male (Ryan)</option>
+                </select>
+              </div>
+
+              {/* Voice Speed */}
+              <div className="space-y-2 text-left">
+                <div className="flex justify-between items-center text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider">
+                  <span>Speech Speed</span>
+                  <span className="text-accent font-semibold">{settings.voiceSpeed || 1.0}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.8"
+                  max="1.5"
+                  step="0.05"
+                  value={settings.voiceSpeed || 1.0}
+                  onChange={e => updateSetting('voiceSpeed', parseFloat(e.target.value))}
+                  className="w-full h-1 bg-void rounded-lg appearance-none cursor-pointer accent-accent"
+                />
+              </div>
+
+              {/* Auto play */}
+              <div className="flex items-center justify-between p-3.5 bg-void/50 border border-border/80 rounded-2xl">
+                <div className="text-left font-sans">
+                  <label className="text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider block">Autoplay Audio</label>
+                  <span className="text-[9.5px] text-text-muted">Speak responses automatically</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoPlay !== false}
+                    onChange={e => updateSetting('autoPlay', e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-void peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-text-secondary after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent peer-checked:after:bg-void" />
+                </label>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowSettingsModal(false)}
+              className="w-full py-3 bg-gradient-to-r from-accent to-teal text-white font-bold rounded-xl hover:shadow-glow transition-all text-xs font-mono tracking-wider uppercase mt-6"
+            >
+              Save Settings
             </button>
           </div>
         </div>

@@ -17,7 +17,10 @@ async def synthesize(request: TTSRequest):
         raise HTTPException(status_code=400, detail="Text too long (max 2000 characters)")
 
     try:
-        audio_bytes = await generate_speech(request.text)
+        voice = request.voice or "en-US-JennyNeural"
+        speed_pct = int(round((request.voice_speed - 1.0) * 100))
+        rate_str = f"{'+' if speed_pct >= 0 else ''}{speed_pct}%"
+        audio_bytes = await generate_speech(request.text, voice=voice, rate=rate_str)
 
         return StreamingResponse(
             io.BytesIO(audio_bytes),

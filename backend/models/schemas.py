@@ -51,6 +51,7 @@ class ChatResponse(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str
+    voice: Optional[str] = "en-US-JennyNeural"
     voice_speed: Optional[float] = 1.0
 
 

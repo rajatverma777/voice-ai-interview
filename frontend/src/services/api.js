@@ -101,8 +101,12 @@ export const getQuestionHint = async (mode, question) => {
 };
 
 // ── Text-to-Speech ───────────────────────────────────────────────
-export const synthesizeSpeech = async (text) => {
-  const res = await api.post('/api/tts/synthesize', { text }, { responseType: 'blob' });
+export const synthesizeSpeech = async (text, voice, speed) => {
+  const res = await api.post('/api/tts/synthesize', {
+    text,
+    voice: voice || 'en-US-JennyNeural',
+    voice_speed: speed !== undefined ? speed : 1.0
+  }, { responseType: 'blob' });
   return URL.createObjectURL(res.data);
 };
 
