@@ -10,30 +10,79 @@ export default function Navbar() {
   const [loggingOut, setLoggingOut]       = useState(false);
   const [hoveredPath, setHoveredPath]     = useState(null);
   const [scrolled, setScrolled]           = useState(false);
+  const [isCollapsed, setIsCollapsed]     = useState(false);
 
   const containerRef = useRef(null);
+  const lastScrollY = useRef(0);
+  
+  // Track pathname synchronously during render to prevent transition race conditions
+  const pathnameRef = useRef(location.pathname);
+  pathnameRef.current = location.pathname;
+
+  const lastPathname = useRef(location.pathname);
+  const lastRouteTransitionTime = useRef(0);
+  if (lastPathname.current !== location.pathname) {
+    lastPathname.current = location.pathname;
+    lastRouteTransitionTime.current = Date.now();
+  }
+
+  const currentPath = useRef(location.pathname);
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, height: 0, opacity: 0 });
   const activePath = hoveredPath || location.pathname;
 
-  // Track scroll position to merge navbar capsules
+  // Track scroll direction and scroll position to auto fold/unfold navigation capsule
   useEffect(() => {
     const handleScroll = (e) => {
+      // Ignore scroll-based fold/unfold logic on the interview page to prevent chat history scrolls from collapsing/expanding it
+      if (pathnameRef.current === '/interview') return;
+
+      // Ignore scroll events for 500ms after a route transition to prevent scroll-restoration/layout shifts from folding the navbar
+      if (Date.now() - lastRouteTransitionTime.current < 500) return;
+
+      // If route changed, reset lastScrollY and ignore this scroll event to prevent layout/scroll resets from collapsing the navbar
+      if (currentPath.current !== pathnameRef.current) {
+        currentPath.current = pathnameRef.current;
+        const target = e.target;
+        lastScrollY.current = target === document
+          ? (window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0)
+          : (target.scrollTop || 0);
+        return;
+      }
+
       const target = e.target;
       const scrollTop = target === document
         ? (window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0)
         : (target.scrollTop || 0);
 
+      // Update scrolled state
       if (scrollTop > 20) {
         setScrolled(true);
       } else {
         setScrolled(false);
       }
+
+      // Auto collapse/unfold on scroll down/up
+      const diff = scrollTop - lastScrollY.current;
+      // Use 5px scroll diff threshold to ignore minor scroll jitters
+      if (Math.abs(diff) > 5) {
+        if (scrollTop <= 10) {
+          // Always unfold when reaching the top of the page
+          setIsCollapsed(false);
+        } else if (diff > 0) {
+          // Scrolling down - fold in icon by default
+          setIsCollapsed(true);
+        } else {
+          // Scrolling up - unfold
+          setIsCollapsed(false);
+        }
+      }
+      lastScrollY.current = scrollTop;
     };
 
-    // Use capturing phase (true) to intercept scroll events from any nested scrollable containers
+    // Use capturing phase (true) to intercept scroll events from nested containers
     window.addEventListener('scroll', handleScroll, true);
     return () => window.removeEventListener('scroll', handleScroll, true);
-  }, []);
+  }, [location.pathname]);
 
   // Update navigation indicator tab bounds dynamically
   useEffect(() => {
@@ -69,6 +118,8 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // No auto-collapse by default on page load/transition
+
   const handleLogout = async () => {
     setLoggingOut(true);
     setDropdownOpen(false);
@@ -80,173 +131,215 @@ export default function Navbar() {
   const initials = user?.username ? user.username.slice(0, 2).toUpperCase() : '?';
 
   return (
-    <nav className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[92%] xl:max-w-[1300px] flex items-center justify-between rounded-full border transition-all duration-500 ease-in-out ${
-      scrolled
-        ? 'bg-[#08080a]/80 backdrop-blur-2xl border-white/[0.07] shadow-[0_12px_40px_-10px_rgba(0,0,0,0.5)] pointer-events-auto'
-        : 'bg-transparent border-transparent pointer-events-none'
-    }`}>
-      
-      {/* Left Brand Capsule */}
-      <div className={`transition-all duration-500 flex items-center justify-center pointer-events-auto ${
-        scrolled
-          ? 'bg-transparent border-transparent shadow-none px-5 py-2'
-          : 'glass rounded-full px-5 py-2 card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)]'
-      }`}>
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="w-7 h-7 rounded-full bg-void/50 border border-accent/40 flex items-center justify-center text-accent shadow-sm group-hover:border-accent transition-all duration-300">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <>
+      {/* Left Brand Capsule Container */}
+      <div
+        className={`fixed top-4 z-50 transition-all duration-500 left-[4%] xl:left-[calc(50%-650px)] flex items-center justify-center ${
+          isCollapsed
+            ? 'opacity-0 max-w-0 px-0 py-0 overflow-hidden translate-x-12 scale-90 pointer-events-none border-transparent'
+            : scrolled
+              ? 'bg-[#08080a]/85 backdrop-blur-2xl border border-white/[0.08] shadow-[0_12px_40px_-10px_rgba(0,0,0,0.5)] px-5 py-2 rounded-full opacity-100 max-w-[400px]'
+              : 'glass rounded-full px-5 py-2 card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)] opacity-100 max-w-[400px]'
+        }`}
+      >
+        <div className="flex items-center justify-center gap-2.5 whitespace-nowrap">
+          {/* Toggle Button (Layers Icon inside Cyan Circle) */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsCollapsed(v => !v);
+            }}
+            className="w-7 h-7 rounded-full bg-accent/10 border border-accent/40 flex items-center justify-center text-accent shadow-sm hover:bg-accent/20 hover:border-accent hover:shadow-glow-sm hover:scale-105 transition-all duration-300 cursor-pointer"
+            title={isCollapsed ? "Expand Navigation" : "Collapse Navigation"}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`transition-transform duration-500 ${isCollapsed ? 'rotate-180 text-accent' : 'text-accent/80'}`}>
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
             </svg>
-          </div>
-          <span className="font-display text-xs font-bold uppercase tracking-wider text-white">
-            VOICE_AI <span className="text-accent font-light">COACH</span>
-          </span>
-        </Link>
+          </button>
+          
+          <Link to="/" className="font-display text-xs font-bold uppercase tracking-wider text-white">
+            VOICE_AI<span className="text-accent font-light ml-1">COACH</span>
+          </Link>
+        </div>
       </div>
 
-      {/* Right Navigation & Menu Capsule */}
-      <div className={`transition-all duration-500 flex items-center gap-2.5 pointer-events-auto ${
-        scrolled
-          ? 'bg-transparent border-transparent shadow-none px-4 py-2'
-          : 'glass rounded-full px-4 py-2 card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)]'
-      }`}>
-        <div className="flex items-center gap-1.5 relative py-0.5" ref={containerRef}>
-          {/* iOS Liquid Sliding Tab Indicator */}
-          <div
-            className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
-            style={{
-              transform: `translate3d(${indicatorStyle.left}px, -50%, 0)`,
-              width: `${indicatorStyle.width}px`,
-              height: `${indicatorStyle.height}px`,
-              opacity: indicatorStyle.opacity,
-              transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
-            }}
-          />
+      {/* Right Collapsible Navigation & Menu Capsule Container */}
+      <div
+        className={`fixed top-4 z-50 transition-all duration-500 right-[4%] xl:right-[calc(50%-650px)] flex items-center ${
+          isCollapsed
+            ? 'w-11 h-11 p-0 justify-center rounded-full bg-[#08080a]/90 backdrop-blur-2xl border border-accent/40 shadow-glow active:scale-95'
+            : scrolled
+              ? 'bg-[#08080a]/85 backdrop-blur-2xl border border-white/[0.08] shadow-[0_12px_40px_-10px_rgba(0,0,0,0.5)] px-4 py-2 gap-3 rounded-full max-w-[1000px]'
+              : 'glass rounded-full px-4 py-2 card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)] gap-3 max-w-[1000px]'
+        }`}
+      >
+        <div className={`transition-all duration-500 ease-in-out flex items-center gap-2.5 origin-right ${
+          isCollapsed
+            ? 'max-w-0 opacity-0 pointer-events-none overflow-hidden scale-90 -translate-x-5'
+            : 'max-w-[1000px] opacity-100'
+        }`}>
+          <div className="flex items-center gap-1.5 relative py-0.5" ref={containerRef}>
+            {/* iOS Liquid Sliding Tab Indicator */}
+            <div
+              className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
+              style={{
+                transform: `translate3d(${indicatorStyle.left}px, -50%, 0)`,
+                width: `${indicatorStyle.width}px`,
+                height: `${indicatorStyle.height}px`,
+                opacity: indicatorStyle.opacity,
+                transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
+              }}
+            />
 
-          <NavLink
-            to="/"
-            active={activePath === '/'}
-            onMouseEnter={() => setHoveredPath('/')}
-            onMouseLeave={() => setHoveredPath(null)}
-          >
-            Home
-          </NavLink>
-          
-          {isAuthenticated && (
-            <>
-              <NavLink
-                to="/interview"
-                active={activePath === '/interview'}
-                onMouseEnter={() => setHoveredPath('/interview')}
-                onMouseLeave={() => setHoveredPath(null)}
+            <NavLink
+              to="/"
+              active={activePath === '/'}
+              onMouseEnter={() => setHoveredPath('/')}
+              onMouseLeave={() => setHoveredPath(null)}
+            >
+              Home
+            </NavLink>
+            
+            {isAuthenticated && (
+              <>
+                <NavLink
+                  to="/interview"
+                  active={activePath === '/interview'}
+                  onMouseEnter={() => setHoveredPath('/interview')}
+                  onMouseLeave={() => setHoveredPath(null)}
+                >
+                  Interview
+                </NavLink>
+                <NavLink
+                  to="/profile"
+                  active={activePath === '/profile'}
+                  onMouseEnter={() => setHoveredPath('/profile')}
+                  onMouseLeave={() => setHoveredPath(null)}
+                >
+                  Profile
+                </NavLink>
+              </>
+            )}
+          </div>
+
+          {isAuthenticated ? (
+            /* User dropdown */
+            <div id="user-menu" className="relative ml-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDropdownOpen(v => !v);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border hover:border-accent/50 bg-void/50 btn-liquid group font-mono text-xs text-text-secondary hover:text-white"
               >
-                Interview
-              </NavLink>
-              <NavLink
-                to="/profile"
-                active={activePath === '/profile'}
-                onMouseEnter={() => setHoveredPath('/profile')}
-                onMouseLeave={() => setHoveredPath(null)}
-              >
-                Profile
-              </NavLink>
-            </>
+                {/* Avatar */}
+                {user?.profile_photo ? (
+                  <img
+                    src={user.profile_photo}
+                    alt={user?.username}
+                    className="w-5 h-5 rounded-full object-cover border border-accent/30"
+                  />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-void border border-accent/30 flex items-center justify-center text-[10px] font-bold text-accent">
+                    {initials}
+                  </div>
+                )}
+                <span className="max-w-[90px] truncate">
+                  {user?.username}
+                </span>
+                <svg
+                  width="10" height="10" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5"
+                  className="text-text-muted transition-transform duration-200"
+                >
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+
+              {/* Dropdown menu */}
+              {dropdownOpen && (
+                <div className="absolute right-0 top-full mt-2.5 w-56 bg-surface/95 backdrop-blur-2xl rounded-2xl border border-border/80 shadow-2xl overflow-hidden z-50 animate-scale-in">
+                  {/* User header */}
+                  <div className="px-4 py-3.5 border-b border-border/60 bg-void/40">
+                    <p className="text-xs font-semibold text-white truncate font-display">{user?.username}</p>
+                    <p className="text-[10px] text-text-muted truncate mt-0.5 font-mono">{user?.email}</p>
+                  </div>
+
+                  {/* Menu items */}
+                  <div className="p-1.5 space-y-1 font-mono text-xs">
+                    <DropdownItem
+                      icon={<MicIcon />}
+                      label="Start Interview"
+                      onClick={() => { navigate('/interview'); setDropdownOpen(false); }}
+                    />
+                    <DropdownItem
+                      icon={<ProfileIcon />}
+                      label="Profile & Stats"
+                      onClick={() => { navigate('/profile'); setDropdownOpen(false); }}
+                    />
+                    <div className="border-t border-border/50 my-1.5" />
+                    <DropdownItem
+                      icon={loggingOut ? <SpinIcon /> : <LogoutIcon />}
+                      label={loggingOut ? 'Signing Out...' : 'Sign Out'}
+                      onClick={handleLogout}
+                      danger
+                      disabled={loggingOut}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Guest buttons (hidden on Auth page itself to avoid redundancy) */
+            pathnameRef.current !== '/auth' && (
+              <div className="flex items-center gap-2 ml-1 font-mono text-xs">
+                <Link
+                  to="/auth"
+                  className="px-3 py-1.5 text-text-secondary hover:text-white btn-liquid"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/auth"
+                  className="px-4 py-1.5 font-bold text-void bg-accent hover:bg-accent/90 rounded-full btn-liquid shadow-glow hover:shadow-[0_0_20px_rgba(0,210,255,0.4)]"
+                >
+                  Get Started
+                </Link>
+              </div>
+            )
           )}
         </div>
 
-        {isAuthenticated ? (
-          /* User dropdown */
-          <div id="user-menu" className="relative ml-1">
-            <button
-              onClick={() => setDropdownOpen(v => !v)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border hover:border-accent/50 bg-void/50 btn-liquid group font-mono text-xs text-text-secondary hover:text-white"
-            >
-              {/* Avatar */}
-              {user?.profile_photo ? (
-                <img
-                  src={user.profile_photo}
-                  alt={user?.username}
-                  className="w-5 h-5 rounded-full object-cover border border-accent/30"
-                />
-              ) : (
-                <div className="w-5 h-5 rounded-full bg-void border border-accent/30 flex items-center justify-center text-[10px] font-bold text-accent">
-                  {initials}
-                </div>
-              )}
-              <span className="max-w-[90px] truncate">
-                {user?.username}
-              </span>
-              <svg
-                width="10" height="10" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2.5"
-                className="text-text-muted transition-transform duration-200"
-              >
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
-
-            {/* Dropdown menu */}
-            {dropdownOpen && (
-              <div className="absolute right-0 top-full mt-2.5 w-56 bg-surface/95 backdrop-blur-2xl rounded-2xl border border-border/80 shadow-2xl overflow-hidden z-50 animate-scale-in">
-                {/* User header */}
-                <div className="px-4 py-3.5 border-b border-border/60 bg-void/40">
-                  <p className="text-xs font-semibold text-white truncate font-display">{user?.username}</p>
-                  <p className="text-[10px] text-text-muted truncate mt-0.5 font-mono">{user?.email}</p>
-                </div>
-
-                {/* Menu items */}
-                <div className="p-1.5 space-y-1 font-mono text-xs">
-                  <DropdownItem
-                    icon={<MicIcon />}
-                    label="Start Interview"
-                    onClick={() => { navigate('/interview'); setDropdownOpen(false); }}
-                  />
-                  <DropdownItem
-                    icon={<ProfileIcon />}
-                    label="Profile & Stats"
-                    onClick={() => { navigate('/profile'); setDropdownOpen(false); }}
-                  />
-                  <div className="border-t border-border/50 my-1.5" />
-                  <DropdownItem
-                    icon={loggingOut ? <SpinIcon /> : <LogoutIcon />}
-                    label={loggingOut ? 'Signing Out...' : 'Sign Out'}
-                    onClick={handleLogout}
-                    danger
-                    disabled={loggingOut}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Guest buttons */
-          <div className="flex items-center gap-2 ml-1 font-mono text-xs">
-            <Link
-              to="/auth"
-              className="px-3 py-1.5 text-text-secondary hover:text-white btn-liquid"
-            >
-              Sign In
-            </Link>
-            <Link
-              to="/auth"
-              className="px-4 py-1.5 font-bold text-void bg-accent hover:bg-accent/90 rounded-full btn-liquid shadow-glow hover:shadow-[0_0_20px_rgba(0,210,255,0.4)]"
-            >
-              Get Started
-            </Link>
-          </div>
+        {/* Collapsed Layers Icon Logo Button */}
+        {isCollapsed && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsCollapsed(false);
+            }}
+            className="w-full h-full rounded-full flex items-center justify-center text-accent cursor-pointer hover:bg-white/5 active:scale-90 transition-all duration-300"
+            title="Expand Navigation"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </button>
         )}
       </div>
-    </nav>
+    </>
   );
 }
 
-function NavLink({ to, active, children, onMouseEnter, onMouseLeave }) {
+function NavLink({ to, active, children, onMouseEnter, onMouseLeave, onClick }) {
   return (
     <Link
       to={to}
       data-active={active}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onClick={onClick}
       className={`px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide btn-liquid z-10 relative border transition-all duration-300 ${
         active
           ? 'border-transparent text-accent'

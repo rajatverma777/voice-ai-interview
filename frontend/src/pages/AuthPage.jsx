@@ -13,6 +13,8 @@ export default function AuthPage() {
 
   const containerRef = useRef(null);
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, height: 0, opacity: 0 });
+  const [hoveredMode, setHoveredMode] = useState(null);
+  const activeMode = hoveredMode || mode;
 
   // Update tabs indicator coordinates dynamically
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function AuthPage() {
     return () => {
       window.removeEventListener('resize', updateIndicator);
     };
-  }, [mode]);
+  }, [activeMode]);
 
   const handleChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -81,7 +83,7 @@ export default function AuthPage() {
         
         {/* Brand header */}
         <div className="flex flex-col items-center mb-8 text-center font-sans">
-          <div className="w-12 h-12 rounded-2xl bg-void border border-accent/40 flex items-center justify-center text-accent shadow-glow mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-accent/[0.05] border border-accent/40 flex items-center justify-center text-accent shadow-glow mb-4 card-liquid hover:bg-accent/[0.12] hover:scale-105 cursor-pointer">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
             </svg>
@@ -93,30 +95,32 @@ export default function AuthPage() {
         </div>
 
         {/* glass Card */}
-        <div className="glass rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass relative">
+        <div className="bg-[#08080a]/10 backdrop-blur-[2px] border border-white/[0.06] shadow-[0_24px_80px_rgba(0,0,0,0.6)] card-liquid rounded-3xl p-6 md:p-8 relative">
           
           {/* Tab selector */}
-          <div className="flex rounded-2xl relative border border-white/[0.08] bg-white/[0.04] p-1 mb-6 font-sans text-xs" ref={containerRef}>
+          <div className="flex rounded-2xl relative border border-white/[0.08] hover:border-accent/30 bg-white/[0.02] p-1 mb-6 font-sans text-xs transition-all duration-300" ref={containerRef}>
             {/* iOS Liquid Sliding Tab Indicator */}
             <div
-              className="absolute bg-accent/20 border border-accent/40 rounded-xl pointer-events-none transition-all duration-[300ms] ease-[cubic-bezier(0.25,1,0.5,1)] shadow-[0_0_12px_rgba(0,210,255,0.15)]"
+              className="absolute bg-accent/[0.10] border border-accent/30 rounded-xl pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.1)]"
               style={{
                 transform: `translate3d(${indicatorStyle.left}px, -50%, 0)`,
                 width: `${indicatorStyle.width}px`,
                 height: `${indicatorStyle.height}px`,
                 top: '50%',
                 opacity: indicatorStyle.opacity,
-                transitionProperty: 'transform, width, opacity',
+                transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
               }}
             />
             {['login', 'register'].map(m => (
               <button
                 key={m}
                 type="button"
-                data-active={mode === m}
-                onClick={() => { setMode(m); setError(''); setConfirmPassword(''); }}
-                className={`flex-1 py-2 font-bold rounded-xl btn-liquid relative z-10 text-center ${
-                  mode === m
+                data-active={activeMode === m}
+                onMouseEnter={() => setHoveredMode(m)}
+                onMouseLeave={() => setHoveredMode(null)}
+                onMouseDown={() => { setMode(m); setError(''); setConfirmPassword(''); }}
+                className={`flex-1 py-2 font-bold rounded-xl btn-liquid relative z-10 text-center transition-colors duration-300 ${
+                  activeMode === m
                     ? 'text-accent'
                     : 'text-text-secondary hover:text-white'
                 }`}
@@ -197,7 +201,7 @@ export default function AuthPage() {
           <p className="text-center text-text-muted text-xs mt-6 font-sans">
             {mode === 'login' ? "New user? " : 'Already have an account? '}
             <button
-              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setConfirmPassword(''); }}
+              onMouseDown={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setConfirmPassword(''); }}
               className="text-accent font-bold transition-colors uppercase tracking-wider underline decoration-accent/30 decoration-2 underline-offset-4 ml-1 text-[11px] btn-liquid"
             >
               {mode === 'login' ? 'Register' : 'Sign In'}
@@ -217,8 +221,10 @@ function InputField({ label, name, type, placeholder, value, onChange, icon }) {
   return (
     <div className="space-y-1.5 text-left font-sans">
       <label className="text-[11px] font-semibold text-text-secondary tracking-wide uppercase">{label}</label>
-      <div className={`relative rounded-xl border transition-all duration-200 ${
-        focused ? 'border-accent bg-panel/30 shadow-glow-sm' : 'border-border bg-panel/10'
+      <div className={`relative rounded-xl border transition-all duration-300 ${
+        focused
+          ? 'border-accent bg-accent/[0.02] shadow-[0_0_15px_rgba(0,210,255,0.15)]'
+          : 'border-white/[0.08] bg-white/[0.02] hover:border-accent/30'
       }`}>
         <span className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${
           focused ? 'text-accent' : 'text-text-muted'
