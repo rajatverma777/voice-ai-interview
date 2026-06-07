@@ -226,14 +226,6 @@ export default function Navbar() {
             ) : (
               <>
                 <NavLink
-                  to="/auth?mode=login"
-                  active={activePath === '/auth?mode=login'}
-                  onMouseEnter={() => setHoveredPath('/auth?mode=login')}
-                  onMouseLeave={() => setHoveredPath(null)}
-                >
-                  Sign In
-                </NavLink>
-                <NavLink
                   to="/auth?mode=register"
                   active={activePath === '/auth?mode=register'}
                   onMouseEnter={() => setHoveredPath('/auth?mode=register')}
