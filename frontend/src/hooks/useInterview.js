@@ -122,9 +122,8 @@ export default function useInterview() {
     // Set a new session ID for a fresh session
     const newSessionId = uuidv4();
     setSessionId(newSessionId);
-
     try {
-      const openingText = await getOpeningMessage(selectedMode, selectedDiff);
+      const openingText = await getOpeningMessage(selectedMode, selectedDiff, newSessionId);
       const openingMsg = { id: uuidv4(), role: 'assistant', content: openingText, timestamp: new Date(), feedback: null };
       
       setMessages([openingMsg]);

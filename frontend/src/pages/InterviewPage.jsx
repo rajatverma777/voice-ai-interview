@@ -283,7 +283,7 @@ export default function InterviewPage() {
           {/* Difficulty Selector */}
           <div className="font-mono">
             <p className="text-[9px] text-text-muted mb-2 font-bold tracking-widest uppercase">Difficulty Level</p>
-            <div className="flex rounded-full relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px]" ref={difficultyContainerRef}>
+            <div className={`flex rounded-full relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px] transition-all duration-300 ${!(sessionStarted || messages.length > 0) ? 'hover:border-accent/30' : 'opacity-60'}`} ref={difficultyContainerRef}>
               {/* iOS Liquid Sliding Tab Indicator */}
               <div
                 className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
@@ -348,7 +348,7 @@ export default function InterviewPage() {
           {sessionStarted && (
             <div className="font-mono">
               <p className="text-[9px] text-text-muted mb-2 font-bold tracking-widest uppercase">Input Mode</p>
-              <div className="flex rounded-full relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px]" ref={inputModeContainerRef}>
+              <div className="flex rounded-full relative border border-white/[0.08] hover:border-accent/30 bg-white/[0.04] p-1 text-[11px] transition-all duration-300" ref={inputModeContainerRef}>
                 {/* iOS Liquid Sliding Tab Indicator */}
                 <div
                   className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"

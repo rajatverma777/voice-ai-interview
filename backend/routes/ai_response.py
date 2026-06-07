@@ -67,13 +67,41 @@ async def get_interview_modes():
 
 
 @router.get("/opening")
-async def get_opening(mode: str, difficulty: str = "medium"):
+async def get_opening(mode: str, difficulty: str = "medium", session_id: str = None):
     """Fetch dynamic opening message with randomized first question."""
     try:
         from services.ai_service import get_random_opening_message, InterviewMode
         # Map string to InterviewMode
         mode_enum = InterviewMode(mode)
         opening_text = get_random_opening_message(mode_enum, difficulty)
+
+        if session_id:
+            try:
+                db = get_db()
+                await db.sessions.update_one(
+                    {"session_id": session_id},
+                    {
+                        "$set": {
+                            "messages": [
+                                {
+                                    "role": "assistant",
+                                    "content": opening_text,
+                                    "timestamp": datetime.utcnow(),
+                                    "feedback": None
+                                }
+                            ],
+                            "mode": mode,
+                            "updated_at": datetime.utcnow()
+                        },
+                        "$setOnInsert": {
+                            "created_at": datetime.utcnow()
+                        }
+                    },
+                    upsert=True
+                )
+            except Exception as e:
+                print(f"Failed to save opening message to DB: {e}")
+
         return {"opening_text": opening_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate opening: {str(e)}")

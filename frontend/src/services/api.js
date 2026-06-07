@@ -99,8 +99,9 @@ export const getInterviewModes = async () => {
   return res.data.modes;
 };
 
-export const getOpeningMessage = async (mode, difficulty) => {
-  const res = await api.get(`/api/ai/opening?mode=${mode}&difficulty=${difficulty}`);
+export const getOpeningMessage = async (mode, difficulty, sessionId = null) => {
+  const url = `/api/ai/opening?mode=${mode}&difficulty=${difficulty}` + (sessionId ? `&session_id=${sessionId}` : '');
+  const res = await api.get(url);
   return res.data.opening_text;
 };
 

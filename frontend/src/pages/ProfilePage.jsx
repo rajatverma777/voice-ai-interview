@@ -137,7 +137,13 @@ export default function ProfilePage() {
       // Support pre-aggregated score fields if present
       if (sess.score_summary) {
         const s = sess.score_summary;
+        if (s.technical != null) { avgTech += s.technical; techCount++; }
+        if (s.clarity != null) { avgClarity += s.clarity; clarityCount++; }
+        if (s.confidence != null) { avgConf += s.confidence; confCount++; }
         if (s.overall != null) { avgOverall += s.overall; overallCount++; }
+      }
+      if (sess.suggestions) {
+        sess.suggestions.forEach(s => { if (s && !suggs.includes(s)) suggs.push(s); });
       }
       if (sess.message_count) exchanges += sess.message_count;
     });
@@ -239,7 +245,7 @@ export default function ProfilePage() {
               <span className="text-2xl font-display font-black text-white mt-1">{sessions.length}</span>
             </div>
             <div className="px-6 py-4 bg-void/45 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-accent/30 transition-colors z-10">
-              <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold">Audio Exchanges</span>
+              <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold">Total Queries</span>
               <span className="text-2xl font-display font-black text-accent mt-1">{totalExchanges}</span>
             </div>
           </div>
@@ -344,7 +350,7 @@ export default function ProfilePage() {
 
             {/* ── RIGHT COLUMN: SESSION LOG ARCHIVES ── */}
             <div className="lg:col-span-2 flex flex-col">
-              <div className="glass-profile rounded-3xl p-6 border border-border/85 shadow-glass flex-1 flex flex-col">
+              <div className="glass-profile card-liquid rounded-3xl p-6 border border-border/85 shadow-glass flex-1 flex flex-col">
                 <h2 className="font-display text-sm font-bold text-white tracking-wide uppercase flex items-center gap-2 mb-6">
                   <span className="w-2 h-2 rounded-full bg-accent" />
                   Interview Archives
@@ -353,9 +359,9 @@ export default function ProfilePage() {
                 {sessions.length > 0 ? (
                   <div className="space-y-3 overflow-y-auto p-3 -m-3 flex-1 scrollbar-thin">
                     {sessions.slice(0, displayLimit).map(sess => {
-                      const score = getSessionScore(sess);
-                      const hasScore = score > 0;
-                      const userMsgCount = sess.messages ? sess.messages.filter(m => m.role === 'user').length : 0;
+                      const score = getSessionScore(sess) || (sess.score_summary && sess.score_summary.overall != null ? Math.round(sess.score_summary.overall) : 0);
+                      const hasScore = score > 0 || (sess.score_summary && sess.score_summary.overall != null);
+                      const userMsgCount = sess.message_count || (sess.messages ? sess.messages.filter(m => m.role === 'user').length : 0);
                       
                       return (
                         <div

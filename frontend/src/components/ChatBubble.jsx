@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 export default function ChatBubble({ message, playAudio }) {
   const { role, content, timestamp, feedback } = message;
   const isUser = role === 'user';
+  const { user } = useAuth();
   const [showFeedback, setShowFeedback] = useState(false);
 
   const timeStr = timestamp
     ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
+
+  const userLabel = user?.username ? user.username.slice(0, 2).toUpperCase() : 'USR';
 
   return (
     <div className={`message-enter flex gap-3.5 ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start`}>
@@ -17,7 +21,7 @@ export default function ChatBubble({ message, playAudio }) {
           ? 'bg-void border-accent/40 text-accent shadow-glow-sm'
           : 'bg-void border-teal/40 text-teal shadow-glow-teal'
       }`}>
-        {isUser ? 'USR' : 'AI'}
+        {isUser ? userLabel : 'AI'}
       </div>
 
       <div className={`flex flex-col gap-1.5 max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
