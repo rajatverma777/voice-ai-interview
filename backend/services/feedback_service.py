@@ -1,5 +1,8 @@
 from models.schemas import InterviewMode
+from config import get_settings
+from typing import List, Optional
 import re
+import json
 
 
 def _is_skip_or_dont_know(text: str) -> bool:
@@ -12,7 +15,170 @@ def _is_skip_or_dont_know(text: str) -> bool:
     return any(p in msg for p in phrases) or msg == "next"
 
 
-async def analyze_response(user_message: str, ai_response: str, mode: InterviewMode) -> dict:
+def _clean_json_text(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
+
+
+def _parse_feedback_json(raw_text: str) -> dict:
+    cleaned = _clean_json_text(raw_text)
+    data = json.loads(cleaned)
+    
+    # Normalize keys to snake_case
+    norm_data = {}
+    for k, v in data.items():
+        key_lower = k.lower().replace("_", "").replace("-", "")
+        if "technical" in key_lower:
+            norm_data["technical_accuracy"] = float(v)
+        elif "clarity" in key_lower or "communication" in key_lower:
+            if "communication" in key_lower and "clarity" in norm_data:
+                continue
+            norm_data["communication_clarity"] = float(v)
+        elif "confidence" in key_lower:
+            norm_data["confidence_level"] = float(v)
+        elif "overall" in key_lower:
+            norm_data["overall_score"] = float(v)
+        elif "suggestion" in key_lower:
+            if isinstance(v, list):
+                norm_data["suggestions"] = [str(item) for item in v]
+            elif isinstance(v, str):
+                norm_data["suggestions"] = [v]
+                
+    # Fill defaults if missing
+    if "technical_accuracy" not in norm_data:
+        norm_data["technical_accuracy"] = 70.0
+    if "communication_clarity" not in norm_data:
+        norm_data["communication_clarity"] = 70.0
+    if "confidence_level" not in norm_data:
+        norm_data["confidence_level"] = 70.0
+    if "overall_score" not in norm_data:
+        norm_data["overall_score"] = round(
+            norm_data["technical_accuracy"] * 0.4 +
+            norm_data["communication_clarity"] * 0.3 +
+            norm_data["confidence_level"] * 0.3,
+            1
+        )
+    if "suggestions" not in norm_data or not norm_data["suggestions"]:
+        norm_data["suggestions"] = ["Good response! Keep up the structured approach."]
+        
+    return norm_data
+
+
+def _get_last_question(history: Optional[list], mode: InterviewMode) -> str:
+    if history:
+        for msg in reversed(history):
+            role = getattr(msg, "role", None) or (msg.get("role") if isinstance(msg, dict) else None)
+            content = getattr(msg, "content", None) or (msg.get("content") if isinstance(msg, dict) else None)
+            if role == "assistant" and content:
+                return content.strip()
+    
+    # Fallback to the interview mode's default opening question
+    from services.ai_service import get_opening_message
+    try:
+        return get_opening_message(mode)
+    except Exception:
+        from services.ai_service import OPENING_MESSAGES
+        return OPENING_MESSAGES.get(mode, "")
+
+
+async def _openai_feedback(question: str, user_message: str, ai_response: str, mode: InterviewMode, api_key: str) -> dict:
+    from openai import AsyncOpenAI
+    client = AsyncOpenAI(api_key=api_key)
+    
+    prompt = f"""You are an expert technical and behavioral interview coach.
+Analyze the candidate's response in the context of the question asked and the interviewer's subsequent feedback/reaction.
+
+Interview Mode: {mode.value if hasattr(mode, 'value') else mode}
+Question Asked: {question}
+Candidate's Answer: {user_message}
+Interviewer's Next Response/Feedback: {ai_response}
+
+Your task is to grade the candidate's answer and provide 1 to 3 highly specific, personalized suggestions.
+Provide scores from 0.0 to 100.0 for:
+1. Technical Accuracy (how correct and detailed the explanation is, or how well behavioral/STAR elements are covered)
+2. Communication Clarity (structure, conciseness, coherence)
+3. Confidence Level (use of confident terminology, lack of excessive hedging like 'I think', 'maybe', 'not sure')
+4. Overall Score (a weighted combination of the three)
+
+The suggestions MUST be specific to this candidate's response. Do NOT use generic templates. For example:
+- Mention specific concepts they missed or got wrong.
+- Give a concrete example of how they can improve a specific phrase they used.
+- Point out specific terminology related to {mode} that they should have used.
+
+You must respond ONLY with a JSON object containing these keys:
+- technical_accuracy (float)
+- communication_clarity (float)
+- confidence_level (float)
+- overall_score (float)
+- suggestions (list of strings)
+"""
+
+    resp = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=400,
+        temperature=0.5,
+        response_format={"type": "json_object"}
+    )
+    return _parse_feedback_json(resp.choices[0].message.content.strip())
+
+
+async def _gemini_feedback(question: str, user_message: str, ai_response: str, mode: InterviewMode, api_key: str) -> dict:
+    import google.generativeai as genai
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    
+    prompt = f"""You are an expert technical and behavioral interview coach.
+Analyze the candidate's response in the context of the question asked and the interviewer's subsequent feedback/reaction.
+
+Interview Mode: {mode.value if hasattr(mode, 'value') else mode}
+Question Asked: {question}
+Candidate's Answer: {user_message}
+Interviewer's Next Response/Feedback: {ai_response}
+
+Your task is to grade the candidate's answer and provide 1 to 3 highly specific, personalized suggestions.
+Provide scores from 0.0 to 100.0 for:
+1. Technical Accuracy (how correct and detailed the explanation is, or how well behavioral/STAR elements are covered)
+2. Communication Clarity (structure, conciseness, coherence)
+3. Confidence Level (use of confident terminology, lack of excessive hedging like 'I think', 'maybe', 'not sure')
+4. Overall Score (a weighted combination of the three)
+
+The suggestions MUST be specific to this candidate's response. Do NOT use generic templates. For example:
+- Mention specific concepts they missed or got wrong.
+- Give a concrete example of how they can improve a specific phrase they used.
+- Point out specific terminology related to {mode} that they should have used.
+
+You must respond ONLY with a JSON object containing these keys:
+- technical_accuracy (float)
+- communication_clarity (float)
+- confidence_level (float)
+- overall_score (float)
+- suggestions (list of strings)
+"""
+
+    try:
+        resp = await model.generate_content_async(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        return _parse_feedback_json(resp.text.strip())
+    except Exception:
+        resp = await model.generate_content_async(prompt)
+        return _parse_feedback_json(resp.text.strip())
+
+
+async def analyze_response(
+    user_message: str,
+    ai_response: str,
+    mode: InterviewMode,
+    history: Optional[List] = None
+) -> dict:
     """Analyze user response quality and return a feedback score."""
     if not user_message:
         return None
@@ -29,6 +195,24 @@ async def analyze_response(user_message: str, ai_response: str, mode: InterviewM
     if len(user_message.strip()) < 10:
         return None
 
+    settings = get_settings()
+    question = _get_last_question(history, mode)
+
+    if settings.ai_provider == "gemini" and settings.gemini_api_key:
+        try:
+            return await _gemini_feedback(question, user_message, ai_response, mode, settings.gemini_api_key)
+        except Exception as e:
+            print(f"Gemini feedback failed: {e}")
+            pass
+
+    if settings.openai_api_key:
+        try:
+            return await _openai_feedback(question, user_message, ai_response, mode, settings.openai_api_key)
+        except Exception as e:
+            print(f"OpenAI feedback failed: {e}")
+            pass
+
+    # Heuristic Fallback
     scores = _compute_scores(user_message, mode)
     
     # Extract baseline scores

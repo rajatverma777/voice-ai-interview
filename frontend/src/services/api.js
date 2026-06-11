@@ -83,13 +83,15 @@ export const transcribeAudio = async (audioBlob) => {
 };
 
 // ── AI Chat ──────────────────────────────────────────────────────
-export const sendChatMessage = async ({ message, sessionId, mode, difficulty, history }) => {
+export const sendChatMessage = async ({ message, sessionId, mode, difficulty, history, targetRole, targetCompany }) => {
   const res = await api.post('/api/ai/chat', {
     message,
     session_id: sessionId,
     mode,
     difficulty,
     history: history.map(m => ({ role: m.role, content: m.content })),
+    target_role: targetRole || null,
+    target_company: targetCompany || null
   });
   return res.data;
 };
@@ -99,8 +101,11 @@ export const getInterviewModes = async () => {
   return res.data.modes;
 };
 
-export const getOpeningMessage = async (mode, difficulty, sessionId = null) => {
-  const url = `/api/ai/opening?mode=${mode}&difficulty=${difficulty}` + (sessionId ? `&session_id=${sessionId}` : '');
+export const getOpeningMessage = async (mode, difficulty, sessionId = null, targetRole = null, targetCompany = null) => {
+  let url = `/api/ai/opening?mode=${mode}&difficulty=${difficulty}`;
+  if (sessionId) url += `&session_id=${sessionId}`;
+  if (targetRole) url += `&target_role=${encodeURIComponent(targetRole)}`;
+  if (targetCompany) url += `&target_company=${encodeURIComponent(targetCompany)}`;
   const res = await api.get(url);
   return res.data.opening_text;
 };

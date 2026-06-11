@@ -47,6 +47,8 @@ class ChatRequest(BaseModel):
     mode: InterviewMode = InterviewMode.DSA
     difficulty: Optional[str] = "medium"
     history: Optional[List[Message]] = []
+    target_role: Optional[str] = None
+    target_company: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

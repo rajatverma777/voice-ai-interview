@@ -16,11 +16,13 @@ async def chat(request: ChatRequest):
             message=request.message,
             history=request.history,
             mode=request.mode,
-            difficulty=request.difficulty
+            difficulty=request.difficulty,
+            target_role=request.target_role,
+            target_company=request.target_company
         )
 
         # Analyze response for feedback
-        feedback = await analyze_response(request.message, ai_response, request.mode)
+        feedback = await analyze_response(request.message, ai_response, request.mode, request.history)
 
         # Persist to MongoDB
         try:
@@ -36,7 +38,12 @@ async def chat(request: ChatRequest):
                             ]
                         }
                     },
-                    "$set": {"mode": request.mode, "updated_at": datetime.utcnow()},
+                    "$set": {
+                        "mode": request.mode,
+                        "updated_at": datetime.utcnow(),
+                        "target_role": request.target_role,
+                        "target_company": request.target_company
+                    },
                     "$setOnInsert": {"created_at": datetime.utcnow()}
                 },
                 upsert=True
@@ -67,13 +74,19 @@ async def get_interview_modes():
 
 
 @router.get("/opening")
-async def get_opening(mode: str, difficulty: str = "medium", session_id: str = None):
-    """Fetch dynamic opening message with randomized first question."""
+async def get_opening(
+    mode: str,
+    difficulty: str = "medium",
+    session_id: str = None,
+    target_role: str = None,
+    target_company: str = None
+):
+    """Fetch dynamic opening message with randomized or custom first question."""
     try:
-        from services.ai_service import get_random_opening_message, InterviewMode
+        from services.ai_service import get_custom_opening_message, InterviewMode
         # Map string to InterviewMode
         mode_enum = InterviewMode(mode)
-        opening_text = get_random_opening_message(mode_enum, difficulty)
+        opening_text = await get_custom_opening_message(mode_enum, difficulty, target_role, target_company)
 
         if session_id:
             try:
@@ -91,7 +104,9 @@ async def get_opening(mode: str, difficulty: str = "medium", session_id: str = N
                                 }
                             ],
                             "mode": mode,
-                            "updated_at": datetime.utcnow()
+                            "updated_at": datetime.utcnow(),
+                            "target_role": target_role,
+                            "target_company": target_company
                         },
                         "$setOnInsert": {
                             "created_at": datetime.utcnow()

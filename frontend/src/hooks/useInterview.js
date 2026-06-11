@@ -69,6 +69,11 @@ export default function useInterview() {
     addMessage('user', userText.trim());
     setIsLoading(true);
 
+    const settingsStr = localStorage.getItem('vai_settings');
+    const settings = settingsStr ? JSON.parse(settingsStr) : {};
+    const targetRole = settings.targetRole || null;
+    const targetCompany = settings.targetCompany || null;
+
     try {
       const result = await sendChatMessage({
         message: userText.trim(),
@@ -76,6 +81,8 @@ export default function useInterview() {
         mode,
         difficulty,
         history: historySnapshot.slice(-12),
+        targetRole,
+        targetCompany,
       });
 
       addMessage('assistant', result.response, result.feedback);
@@ -122,8 +129,14 @@ export default function useInterview() {
     // Set a new session ID for a fresh session
     const newSessionId = uuidv4();
     setSessionId(newSessionId);
+
+    const settingsStr = localStorage.getItem('vai_settings');
+    const settings = settingsStr ? JSON.parse(settingsStr) : {};
+    const targetRole = settings.targetRole || null;
+    const targetCompany = settings.targetCompany || null;
+
     try {
-      const openingText = await getOpeningMessage(selectedMode, selectedDiff, newSessionId);
+      const openingText = await getOpeningMessage(selectedMode, selectedDiff, newSessionId, targetRole, targetCompany);
       const openingMsg = { id: uuidv4(), role: 'assistant', content: openingText, timestamp: new Date(), feedback: null };
       
       setMessages([openingMsg]);
@@ -184,6 +197,7 @@ export default function useInterview() {
         setMessages(parsedMessages);
         // Update cache
         localStorage.setItem(cacheKey, JSON.stringify({ messages: data.messages }));
+        return data;
       }
     } catch (err) {
       console.error(err);

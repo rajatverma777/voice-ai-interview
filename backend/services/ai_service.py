@@ -158,20 +158,28 @@ async def generate_response(
     history: Optional[List[Message]] = None,
     mode: InterviewMode = InterviewMode.DSA,
     difficulty: str = "medium",
+    target_role: Optional[str] = None,
+    target_company: Optional[str] = None,
 ) -> str:
+    system_prompt = SYSTEM_PROMPTS[mode]
+    if target_role or target_company:
+        role_company_directive = f"\n\nCandidate Target Job Role: {target_role or 'Software Engineer'}\nCandidate Target Company: {target_company or 'Tech Company'}\nTailor your questions, difficulty, and tone to match this specific target role and company standard.\n"
+        system_prompt += role_company_directive
+
     if settings.ai_provider == "gemini" and settings.gemini_api_key:
-        return await _gemini_response(message, history, mode)
+        return await _gemini_response(message, history, mode, system_prompt)
     elif settings.openai_api_key:
-        return await _openai_response(message, history, mode)
+        return await _openai_response(message, history, mode, system_prompt)
     else:
         return _demo_response(message, history or [], mode, difficulty)
 
+
 # ── OpenAI ────────────────────────────────────────────────────────────────────
 
-async def _openai_response(message, history, mode):
+async def _openai_response(message, history, mode, system_prompt: str):
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=settings.openai_api_key)
-    msgs = [{"role": "system", "content": SYSTEM_PROMPTS[mode]}]
+    msgs = [{"role": "system", "content": system_prompt}]
     if history:
         for m in history[-12:]:
             msgs.append({"role": m.role, "content": m.content})
@@ -181,19 +189,75 @@ async def _openai_response(message, history, mode):
     )
     return resp.choices[0].message.content.strip()
 
+
 # ── Gemini ────────────────────────────────────────────────────────────────────
 
-async def _gemini_response(message, history, mode):
+async def _gemini_response(message, history, mode, system_prompt: str):
     import google.generativeai as genai
     genai.configure(api_key=settings.gemini_api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system_prompt)
     chat_history = []
     if history:
         for m in history[-12:]:
             chat_history.append({"role": "user" if m.role == "user" else "model", "parts": [m.content]})
     chat = model.start_chat(history=chat_history)
-    resp = await chat.send_message_async(f"{SYSTEM_PROMPTS[mode]}\n\nCandidate: {message}")
+    resp = await chat.send_message_async(f"Candidate: {message}")
     return resp.text.strip()
+
+
+# ── Custom opening message ───────────────────────────────────────────────────
+
+async def get_custom_opening_message(
+    mode: InterviewMode,
+    difficulty: str = "medium",
+    target_role: Optional[str] = None,
+    target_company: Optional[str] = None
+) -> str:
+    if not (target_role or target_company):
+        return get_random_opening_message(mode, difficulty)
+        
+    mode_label = "Data Structures & Algorithms"
+    if mode == InterviewMode.HR:
+        mode_label = "HR & Behavioral"
+    elif mode == InterviewMode.SYSTEM_DESIGN:
+        mode_label = "System Design"
+
+    prompt = f"""You are a senior technical interviewer.
+Generate a first, opening question for a candidate interviewing for the following role:
+Role: {target_role or 'Software Engineer'}
+Company: {target_company or 'Tech Company'}
+Interview Type: {mode_label}
+Difficulty Level: {difficulty}
+
+Generate a concise, professional greeting and ONE clear, relevant question to start the interview.
+Do not ask multiple questions. Keep it under 3 sentences. Do not use any markdown formatting or placeholders.
+"""
+
+    if settings.ai_provider == "gemini" and settings.gemini_api_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.gemini_api_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            resp = await model.generate_content_async(prompt)
+            return resp.text.strip()
+        except Exception:
+            pass
+
+    if settings.openai_api_key:
+        try:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=settings.openai_api_key)
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150,
+                temperature=0.7
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception:
+            pass
+
+    return get_random_opening_message(mode, difficulty)
 
 # ── Demo evaluation ───────────────────────────────────────────────────────────
 

@@ -36,6 +36,8 @@ export default function InterviewPage() {
     voice: 'en-US-JennyNeural',
     voiceSpeed: 1.0,
     autoPlay: true,
+    targetRole: '',
+    targetCompany: '',
   });
 
   const chatEndRef = useRef(null);
@@ -190,7 +192,12 @@ export default function InterviewPage() {
     const sessionIdParam = searchParams.get('session_id');
     const modeParam = searchParams.get('mode');
     if (sessionIdParam) {
-      loadSession(sessionIdParam, modeParam || 'dsa');
+      loadSession(sessionIdParam, modeParam || 'dsa').then(data => {
+        if (data) {
+          if (data.target_role !== undefined) updateSetting('targetRole', data.target_role || '');
+          if (data.target_company !== undefined) updateSetting('targetCompany', data.target_company || '');
+        }
+      });
       setSessionStarted(false); // Standby mode
     }
   }, [searchParams, loadSession]);
@@ -333,6 +340,47 @@ export default function InterviewPage() {
               disabled={sessionStarted || messages.length > 0}
             />
           </div>
+
+          {!(sessionStarted || messages.length > 0) ? (
+            <div className="space-y-3 font-mono text-[11px]">
+              <div>
+                <p className="text-[9px] text-text-muted mb-1.5 font-bold tracking-widest uppercase">Target Job Role</p>
+                <input
+                  type="text"
+                  placeholder="e.g. Frontend Engineer"
+                  value={settings.targetRole || ''}
+                  onChange={(e) => updateSetting('targetRole', e.target.value)}
+                  className="w-full bg-white/[0.03] border border-white/[0.08] hover:border-accent/30 focus:border-accent/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition-colors card-liquid"
+                />
+              </div>
+              <div>
+                <p className="text-[9px] text-text-muted mb-1.5 font-bold tracking-widest uppercase">Target Company</p>
+                <input
+                  type="text"
+                  placeholder="e.g. Google"
+                  value={settings.targetCompany || ''}
+                  onChange={(e) => updateSetting('targetCompany', e.target.value)}
+                  className="w-full bg-white/[0.03] border border-white/[0.08] hover:border-accent/30 focus:border-accent/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition-colors card-liquid"
+                />
+              </div>
+            </div>
+          ) : (
+            (settings.targetRole || settings.targetCompany) && (
+              <div className="p-3 bg-void/25 border border-white/[0.06] rounded-2xl space-y-1.5 font-mono text-[10px]">
+                <span className="text-text-muted uppercase tracking-widest font-bold block">Target Profile</span>
+                {settings.targetRole && (
+                  <div className="text-white">
+                    <span className="text-accent font-semibold">Role:</span> {settings.targetRole}
+                  </div>
+                )}
+                {settings.targetCompany && (
+                  <div className="text-white">
+                    <span className="text-accent font-semibold">Company:</span> {settings.targetCompany}
+                  </div>
+                )}
+              </div>
+            )
+          )}
 
           {/* Difficulty Selector */}
           <div className="font-mono">
