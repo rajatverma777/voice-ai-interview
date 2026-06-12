@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from utils.database import get_db
+from utils.auth import get_current_user
 from datetime import datetime
 
 router = APIRouter()
 
 
 @router.get("/{session_id}")
-async def get_history(session_id: str):
+async def get_history(session_id: str, current_user: dict = Depends(get_current_user)):
     """Fetch chat history for a session."""
     try:
         db = get_db()
@@ -16,40 +17,55 @@ async def get_history(session_id: str):
         )
         if not session:
             return {"session_id": session_id, "messages": [], "mode": "dsa"}
+        
+        # Verify ownership
+        if session.get("user_id") and session.get("user_id") != current_user["user_id"]:
+            raise HTTPException(status_code=403, detail="Not authorized to access this session")
+            
         return session
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
 
 
 @router.delete("")
 @router.delete("/")
-async def clear_all_history():
+async def clear_all_history(current_user: dict = Depends(get_current_user)):
     """Clear all chat history sessions."""
     try:
         db = get_db()
-        result = await db.sessions.delete_many({})
+        result = await db.sessions.delete_many({"user_id": current_user["user_id"]})
         return {"message": "All sessions cleared", "deleted_count": result.deleted_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
 
 
 @router.delete("/{session_id}")
-async def clear_history(session_id: str):
+async def clear_history(session_id: str, current_user: dict = Depends(get_current_user)):
     """Clear chat history for a session."""
     try:
         db = get_db()
+        # Verify ownership
+        existing = await db.sessions.find_one({"session_id": session_id})
+        if existing and existing.get("user_id") and existing.get("user_id") != current_user["user_id"]:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this session")
+
         await db.sessions.delete_one({"session_id": session_id})
         return {"message": "Session cleared", "session_id": session_id}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DB error: {str(e)}")
 
 
 @router.get("/")
-async def list_sessions():
+async def list_sessions(current_user: dict = Depends(get_current_user)):
     """List all sessions (latest 20) — metadata only, NO messages to keep response small."""
     try:
         db = get_db()
         pipeline = [
+            {"$match": {"user_id": current_user["user_id"]}},
             {"$sort": {"created_at": -1}},
             {"$limit": 20},
             {

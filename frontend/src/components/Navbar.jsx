@@ -7,6 +7,7 @@ export default function Navbar() {
   const navigate  = useNavigate();
   const { user, logout, isAuthenticated } = useAuth();
   const [dropdownOpen, setDropdownOpen]   = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut]       = useState(false);
   const [hoveredPath, setHoveredPath]     = useState(null);
   const [scrolled, setScrolled]           = useState(false);
@@ -116,7 +117,12 @@ export default function Navbar() {
 
   // Close dropdown on outside click
   useEffect(() => {
-    const handler = e => { if (!e.target.closest('#user-menu')) setDropdownOpen(false); };
+    const handler = e => {
+      if (!e.target.closest('#user-menu') && !e.target.closest('#mobile-toggle')) {
+        setDropdownOpen(false);
+        setMobileMenuOpen(false);
+      }
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
@@ -182,7 +188,8 @@ export default function Navbar() {
             ? 'max-w-0 opacity-0 pointer-events-none overflow-hidden scale-90 -translate-x-5'
             : 'max-w-[450px] opacity-100'
         }`}>
-          <div className="flex items-center gap-1.5 relative py-0.5" ref={containerRef}>
+          {/* Desktop/Tablet Navigation Links */}
+          <div className="hidden md:flex items-center gap-1.5 relative py-0.5" ref={containerRef}>
             {/* iOS Liquid Sliding Tab Indicator */}
             <div
               className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
@@ -237,13 +244,14 @@ export default function Navbar() {
             )}
           </div>
 
+          {/* User profile dropdown */}
           {isAuthenticated && (
-            /* User dropdown */
             <div id="user-menu" className="relative ml-1">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setDropdownOpen(v => !v);
+                  setMobileMenuOpen(false);
                 }}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border hover:border-accent/50 bg-void/15 btn-liquid group font-mono text-xs text-text-secondary hover:text-white"
               >
@@ -271,10 +279,9 @@ export default function Navbar() {
                 </svg>
               </button>
 
-              {/* Dropdown menu */}
+              {/* User Dropdown Menu */}
               {dropdownOpen && (
                 <div className="absolute -right-4 top-full mt-3.5 w-60 z-50 flex flex-col gap-1.5 animate-scale-in text-white">
-                  {/* Menu items */}
                   <DropdownItem
                     icon={<MicIcon />}
                     label="Start Interview"
@@ -296,6 +303,62 @@ export default function Navbar() {
               )}
             </div>
           )}
+
+          {/* Mobile Menu Toggle Button (only on mobile) */}
+          <div id="mobile-toggle" className="relative block md:hidden">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMobileMenuOpen(v => !v);
+                setDropdownOpen(false);
+              }}
+              className="w-8 h-8 rounded-full border border-border hover:border-accent/50 bg-void/15 flex items-center justify-center text-text-secondary hover:text-accent transition-all duration-300"
+            >
+              {mobileMenuOpen ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              )}
+            </button>
+
+            {/* Mobile Dropdown Menu */}
+            {mobileMenuOpen && (
+              <div className="absolute -right-4 top-full mt-3.5 w-48 z-50 flex flex-col gap-1.5 animate-scale-in text-white">
+                <DropdownItem
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
+                  label="Home"
+                  onClick={() => { navigate('/'); setMobileMenuOpen(false); }}
+                />
+                {isAuthenticated ? (
+                  <>
+                    <DropdownItem
+                      icon={<MicIcon />}
+                      label="Interview"
+                      onClick={() => { navigate('/interview'); setMobileMenuOpen(false); }}
+                    />
+                    <DropdownItem
+                      icon={<ProfileIcon />}
+                      label="Profile"
+                      onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }}
+                    />
+                  </>
+                ) : (
+                  <DropdownItem
+                    icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>}
+                    label="Get Started"
+                    onClick={() => { navigate('/auth?mode=register'); setMobileMenuOpen(false); }}
+                  />
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Collapsed Layers Icon Logo Button */}

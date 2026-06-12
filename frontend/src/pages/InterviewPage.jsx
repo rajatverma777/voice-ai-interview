@@ -24,7 +24,7 @@ export default function InterviewPage() {
   const [sessionStarted, setSessionStarted] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [inputMode, setInputMode] = useState('voice'); // 'voice' | 'text'
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(() => window.innerWidth >= 1024);
   
   const [activeHint, setActiveHint] = useState('');
   const [showHintModal, setShowHintModal] = useState(false);
@@ -210,8 +210,10 @@ export default function InterviewPage() {
       if (firstMsg.timestamp && lastMsg.timestamp) {
         const firstTime = new Date(firstMsg.timestamp).getTime();
         const lastTime = new Date(lastMsg.timestamp).getTime();
-        const diffSeconds = Math.max(0, Math.floor((lastTime - firstTime) / 1000));
-        setTimerSeconds(diffSeconds);
+        if (!isNaN(firstTime) && !isNaN(lastTime)) {
+          const diffSeconds = Math.max(0, Math.floor((lastTime - firstTime) / 1000));
+          setTimerSeconds(diffSeconds);
+        }
       }
     }
   }, [messages, sessionStarted]);
@@ -325,11 +327,20 @@ export default function InterviewPage() {
   }
 
   return (
-    <div className="pt-20 h-screen flex overflow-hidden relative">
+    <div className="pt-20 h-[100dvh] flex overflow-hidden relative">
+
+      {/* ── Sidebar Backdrop (only on mobile/tablet to close sidebar by clicking outside) ── */}
+      {showSidebar && (
+        <div 
+          onClick={() => setShowSidebar(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 lg:hidden block"
+          style={{ top: '80px' }}
+        />
+      )}
 
       {/* ── Sidebar Deck ── */}
-      <aside className={`flex-shrink-0 transition-all duration-300 ${showSidebar ? 'w-72' : 'w-0 overflow-hidden'} z-20`}>
-        <div className="h-full border-r border-border/80 bg-void/40 p-5 flex flex-col gap-5 overflow-y-auto w-72 scrollbar-thin">
+      <aside className={`fixed lg:relative top-20 lg:top-0 left-0 bottom-0 h-[calc(100dvh-80px)] lg:h-full flex-shrink-0 transition-all duration-300 ${showSidebar ? 'w-72' : 'w-0 overflow-hidden'} z-30 lg:z-20 bg-surface/98 lg:bg-transparent shadow-[20px_0_50px_rgba(0,0,0,0.8)] lg:shadow-none`}>
+        <div className="h-full border-r border-border/80 bg-[#0c1122]/95 lg:bg-void/40 p-5 flex flex-col gap-5 overflow-y-auto w-72 scrollbar-thin">
           
           <div>
             <h2 className="font-display font-extrabold text-white text-xs mb-1 tracking-wider uppercase">Interview Module</h2>
@@ -350,7 +361,7 @@ export default function InterviewPage() {
                   placeholder="e.g. Frontend Engineer"
                   value={settings.targetRole || ''}
                   onChange={(e) => updateSetting('targetRole', e.target.value)}
-                  className="w-full bg-white/[0.03] border border-white/[0.08] hover:border-accent/30 focus:border-accent/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition-colors card-liquid"
+                  className="w-full input-target-personalization"
                 />
               </div>
               <div>
@@ -360,7 +371,7 @@ export default function InterviewPage() {
                   placeholder="e.g. Google"
                   value={settings.targetCompany || ''}
                   onChange={(e) => updateSetting('targetCompany', e.target.value)}
-                  className="w-full bg-white/[0.03] border border-white/[0.08] hover:border-accent/30 focus:border-accent/60 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition-colors card-liquid"
+                  className="w-full input-target-personalization"
                 />
               </div>
             </div>
@@ -516,7 +527,7 @@ export default function InterviewPage() {
       <div className="flex-1 flex flex-col overflow-hidden bg-transparent relative z-10">
         
         {/* Workspace Floating Header (Split 2-Part Design) */}
-        <div className="px-6 py-4 flex items-center justify-between font-mono bg-transparent z-20 gap-4">
+        <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between font-mono bg-transparent z-20 gap-3 md:gap-4">
           
           {/* Left Pill Group */}
           <div className="bg-[#08080a]/10 backdrop-blur-[2px] border border-white/[0.06] rounded-full px-3 py-1.5 flex items-center gap-4 shadow-glass card-liquid hover:border-accent/35 hover:shadow-[0_0_15px_rgba(0,210,255,0.06)]">
@@ -532,7 +543,7 @@ export default function InterviewPage() {
 
             <div className="flex items-center gap-2.5 pr-2">
               <div className={`w-2 h-2 rounded-full ${sessionStarted ? 'bg-accent animate-pulse shadow-glow' : 'bg-red-500'}`} />
-              <span className="text-[10px] font-bold tracking-wider text-white">
+              <span className="text-[10px] font-bold tracking-wider text-white hidden sm:inline">
                 {sessionStarted ? 'SESSION ACTIVE' : 'STANDBY'}
               </span>
               {(sessionStarted || messages.length > 0) && (
@@ -697,7 +708,7 @@ export default function InterviewPage() {
           <div className="bg-transparent px-4 py-5 font-mono">
             {inputMode === 'voice' ? (
               <div className="flex flex-col items-center gap-4 relative">
-                <div className="flex items-center justify-center gap-8 w-full">
+                <div className="flex items-center justify-center gap-4 sm:gap-8 w-full">
                   <button
                     onMouseDown={(e) => { e.preventDefault(); handleGetHint(); }}
                     disabled={!isHintSkipActive}
@@ -759,7 +770,7 @@ export default function InterviewPage() {
                     onChange={e => setTypingText(e.target.value)}
                     placeholder="Type your response here..."
                     disabled={isLoading}
-                    className="flex-1 bg-transparent border border-white/[0.06] rounded-full px-5 py-3 text-xs text-white placeholder:text-text-muted focus:outline-none focus:border-accent/80 focus:shadow-[0_0_15px_rgba(0,210,255,0.1)] transition-all disabled:opacity-50 font-sans min-w-0"
+                    className="flex-1 bg-transparent border border-white/[0.06] rounded-full px-5 py-3 text-xs text-white placeholder:text-text-muted focus:outline-none focus:border-accent/80 focus:shadow-[0_0_15px_rgba(0,210,255,0.1)] transition-all disabled:opacity-50 font-sans min-w-0 input-keyboard-response"
                   />
                   
                   <div className="flex items-center gap-1.5 relative p-1 rounded-full border border-white/[0.08] bg-white/[0.02] card-liquid hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)] transition-all duration-300" ref={controlsContainerRef}>
@@ -823,17 +834,10 @@ export default function InterviewPage() {
 
                     <button
                       type="submit"
-                      data-active={hoveredControl === 'send'}
-                      onMouseEnter={() => !(isLoading || !typingText.trim()) && setHoveredControl('send')}
-                      onMouseLeave={() => setHoveredControl(null)}
-                      onMouseDown={(e) => { e.preventDefault(); handleTypingSubmit(e); }}
                       disabled={isLoading || !typingText.trim()}
-                      className={`px-5 py-2 text-xs font-bold rounded-full btn-liquid relative z-10 uppercase tracking-wider border transition-all duration-300
+                      className={`px-5 py-2 text-xs font-bold rounded-full relative z-10 uppercase tracking-wider border transition-all duration-300
                         ${!(isLoading || !typingText.trim())
-                          ? (hoveredControl === 'send'
-                              ? "border-transparent text-accent hover:text-white"
-                              : "border-white/[0.06] text-text-secondary bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06] hover:text-white cursor-pointer"
-                            )
+                          ? "btn-liquid-glass-accent cursor-pointer"
                           : "opacity-25 pointer-events-none border-white/[0.06] text-text-muted bg-white/[0.01]"
                         }`}
                     >

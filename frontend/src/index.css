@@ -347,6 +347,41 @@ html, body {
   transform: scale(0.96);
 }
 
+.btn-liquid-glass-accent {
+  display: inline-block;
+  background: linear-gradient(135deg, rgba(0, 210, 255, 0.85) 0%, rgba(0, 100, 255, 0.9) 100%);
+  border: 1px solid rgba(0, 210, 255, 0.6);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 0 20px rgba(0, 210, 255, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  animation: accent-pulse 2s infinite ease-in-out;
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+              box-shadow 0.3s cubic-bezier(0.25, 1, 0.5, 1), 
+              background-color 0.25s ease, 
+              border-color 0.25s ease,
+              color 0.25s ease;
+}
+.btn-liquid-glass-accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(0, 210, 255, 0.95) 0%, rgba(0, 120, 255, 0.95) 100%);
+  border-color: rgba(0, 210, 255, 0.9);
+  color: #ffffff;
+  box-shadow: 0 0 30px rgba(0, 210, 255, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  transform: translateY(-4px) scale(1.045) !important;
+  animation: none;
+}
+.btn-liquid-glass-accent:active:not(:disabled) {
+  transform: scale(0.955);
+}
+
+@keyframes accent-pulse {
+  0%, 100% {
+    box-shadow: 0 0 16px rgba(0, 210, 255, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(0, 210, 255, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  }
+}
+
 .btn-liquid-glass-danger {
   background: rgba(239, 68, 68, 0.06);
   border: 1px solid rgba(239, 68, 68, 0.2);
@@ -369,12 +404,248 @@ html, body {
   transform: scale(0.96);
 }
 
+.input-keyboard-response {
+  will-change: transform;
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+              box-shadow 0.3s cubic-bezier(0.25, 1, 0.5, 1), 
+              border-color 0.25s ease,
+              background-color 0.25s ease;
+}
+.input-keyboard-response:hover {
+  transform: translateY(-3px) !important;
+  border-color: rgba(0, 210, 255, 0.45) !important;
+  box-shadow: 0 6px 15px rgba(0, 210, 255, 0.12);
+}
+.input-keyboard-response:focus {
+  transform: translateY(-3px) !important;
+  border-color: rgba(0, 210, 255, 0.8) !important;
+  box-shadow: 0 6px 20px rgba(0, 210, 255, 0.25);
+  animation: accent-pulse 2s infinite ease-in-out;
+}
+
+.input-target-personalization {
+  display: block;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  outline: none;
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+              box-shadow 0.3s cubic-bezier(0.25, 1, 0.5, 1), 
+              border-color 0.25s ease;
+}
+.input-target-personalization:hover {
+  transform: translateY(-4px) !important;
+  border-color: rgba(0, 210, 255, 0.45) !important;
+  box-shadow: 0 6px 15px rgba(0, 210, 255, 0.12);
+}
+.input-target-personalization:focus {
+  transform: translateY(-4px) !important;
+  border-color: rgba(0, 210, 255, 0.85) !important;
+  box-shadow: 0 6px 20px rgba(0, 210, 255, 0.25);
+  animation: accent-pulse 2s infinite ease-in-out;
+}
+
 .glass-profile {
   background: rgba(8, 8, 10, 0.1);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Professional Print Layout Style ── */
+@media print {
+  :root {
+    color-scheme: light !important;
+  }
+
+  /* Reset print color adjustment to economy to allow white backgrounds */
+  * {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    print-color-adjust: economy !important;
+    -webkit-print-color-adjust: economy !important;
+  }
+
+  body, html, #root, .min-h-screen, main, div, section, aside {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  /* Title / Heading Colors */
+  h1, h2, h3, h4, h5, h6, 
+  .text-white, 
+  .font-display, 
+  .text-slate-200, 
+  .text-slate-100 {
+    color: #0f172a !important;
+  }
+
+  .text-text-secondary, .text-slate-400, .text-slate-300 {
+    color: #334155 !important;
+  }
+
+  .text-text-muted, .text-slate-500 {
+    color: #64748b !important;
+  }
+
+  .text-accent {
+    color: #0284c7 !important; /* Professional dark blue */
+  }
+
+  /* Specific card layouts - clean thin borders instead of dark glassmorphism */
+  .glass-profile, .card-liquid, .futuristic-card, .p-4, .p-5, .p-6, .p-8, .p-3\.5 {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Specific backgrounds that should be soft gray */
+  .bg-void\/10, .bg-void\/20, .bg-void\/25, .bg-void\/35, .bg-white\/\[0\.02\], .bg-white\/\[0\.03\], .bg-panel\/30, .bg-\[\#08080a\]\/10,
+  [class*="bg-void/"],
+  [class*="bg-panel/"],
+  [class*="bg-white/"],
+  [class*="bg-[#"] {
+    background: #f8fafc !important;
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  /* Stack layouts vertically in print to maximize readable width and prevent squishing */
+  .flex-col.lg\:flex-row,
+  .grid.lg\:grid-cols-3 {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.5rem !important;
+    width: 100% !important;
+  }
+
+  /* Hide interactive controls and purely decorative background visual effects */
+  header, nav, footer, button, .no-print, 
+  [role="button"], 
+  .btn-liquid,
+  .btn-liquid-glass,
+  .particles-container,
+  .absolute.top-4.right-4, /* Edit badge */
+  .animate-ping,
+  .animate-pulse,
+  .pointer-events-none,
+  .absolute[class*="bg-accent/"],
+  .absolute[class*="bg-indigo/"],
+  .absolute[class*="bg-teal/"],
+  .absolute[class*="bg-gradient-"],
+  [class*="blur-"]:not([class*="backdrop-blur-"]) {
+    display: none !important;
+  }
+
+  /* Ensure SVG lines/axes are dark slate instead of neon cyan */
+  svg path {
+    stroke: #0284c7 !important; /* Dark blue/cyan lines */
+  }
+  
+  /* Trend graph path fill gradient fallback */
+  svg path[fill^="url"] {
+    fill: #e0f2fe !important; /* Soft blue fill in print */
+  }
+
+  /* Line chart trend dots */
+  svg circle[r="3"] {
+    fill: #0284c7 !important;
+    stroke: #ffffff !important;
+  }
+
+  /* Radial score gauges should remain transparent in center */
+  .relative.w-36.h-36 svg circle,
+  .relative.w-24.h-24 svg circle {
+    fill: transparent !important;
+  }
+
+  /* Circular radial score gauge paths */
+  .relative.w-36.h-36 svg circle:first-child,
+  .relative.w-24.h-24 svg circle:first-child {
+    stroke: #cbd5e1 !important; /* Light gray track */
+  }
+  
+  .relative.w-36.h-36 svg circle:nth-child(2),
+  .relative.w-24.h-24 svg circle:nth-child(2) {
+    stroke: #0284c7 !important; /* Dark blue score path */
+  }
+
+  /* Score meter horizontal progress bars */
+  .h-2.bg-void {
+    background-color: #cbd5e1 !important; /* Light gray track */
+    background: #cbd5e1 !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+  
+  .h-2.bg-void div,
+  .bg-gradient-to-r {
+    background-color: #0284c7 !important; /* Solid blue progress fill */
+    background: #0284c7 !important;
+  }
+
+  /* If the report modal is open, hide the main profile content behind it during print */
+  body:has(.report-modal-active) .profile-main-content {
+    display: none !important;
+  }
+
+  /* Display printable report fully as a flat sheet if modal is open */
+  .report-modal-active.fixed.inset-0.z-50,
+  .fixed.inset-0.z-50 {
+    position: static !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .report-modal-active .max-w-4xl,
+  .max-w-4xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    height: auto !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    color: #0f172a !important;
+  }
+
+  /* Force modal scrollable panels to fully expand on print pages */
+  .report-modal-active .flex-1.overflow-y-auto,
+  [class*="overflow-y-auto"] {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+
+  /* Style response left-border in Q&A breakdown */
+  .report-modal-active [class*="border-l"] {
+    border-left-color: #cbd5e1 !important;
+    border-left-width: 2px !important;
+  }
+
+  /* Page margins and layout */
+  @page {
+    margin: 1.6cm 1.2cm;
+  }
 }
 
 

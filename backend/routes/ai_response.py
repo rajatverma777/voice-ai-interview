@@ -1,15 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from models.schemas import ChatRequest, ChatResponse
 from services.ai_service import generate_response
 from services.feedback_service import analyze_response
 from utils.database import get_db
+from utils.auth import get_current_user
 from datetime import datetime
 
 router = APIRouter()
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, current_user: dict = Depends(get_current_user)):
     """Generate AI interviewer response."""
     try:
         ai_response = await generate_response(
@@ -27,6 +28,10 @@ async def chat(request: ChatRequest):
         # Persist to MongoDB
         try:
             db = get_db()
+            existing = await db.sessions.find_one({"session_id": request.session_id})
+            if existing and existing.get("user_id") and existing.get("user_id") != current_user["user_id"]:
+                raise HTTPException(status_code=403, detail="Not authorized to access this session")
+
             await db.sessions.update_one(
                 {"session_id": request.session_id},
                 {
@@ -42,12 +47,15 @@ async def chat(request: ChatRequest):
                         "mode": request.mode,
                         "updated_at": datetime.utcnow(),
                         "target_role": request.target_role,
-                        "target_company": request.target_company
+                        "target_company": request.target_company,
+                        "user_id": current_user["user_id"]
                     },
                     "$setOnInsert": {"created_at": datetime.utcnow()}
                 },
                 upsert=True
             )
+        except HTTPException:
+            raise
         except Exception:
             pass  # DB optional — don't fail the response
 
@@ -57,6 +65,8 @@ async def chat(request: ChatRequest):
             feedback=feedback
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
 
@@ -79,7 +89,8 @@ async def get_opening(
     difficulty: str = "medium",
     session_id: str = None,
     target_role: str = None,
-    target_company: str = None
+    target_company: str = None,
+    current_user: dict = Depends(get_current_user)
 ):
     """Fetch dynamic opening message with randomized or custom first question."""
     try:
@@ -91,6 +102,10 @@ async def get_opening(
         if session_id:
             try:
                 db = get_db()
+                existing = await db.sessions.find_one({"session_id": session_id})
+                if existing and existing.get("user_id") and existing.get("user_id") != current_user["user_id"]:
+                    raise HTTPException(status_code=403, detail="Not authorized to access this session")
+
                 await db.sessions.update_one(
                     {"session_id": session_id},
                     {
@@ -106,7 +121,8 @@ async def get_opening(
                             "mode": mode,
                             "updated_at": datetime.utcnow(),
                             "target_role": target_role,
-                            "target_company": target_company
+                            "target_company": target_company,
+                            "user_id": current_user["user_id"]
                         },
                         "$setOnInsert": {
                             "created_at": datetime.utcnow()
@@ -114,10 +130,14 @@ async def get_opening(
                     },
                     upsert=True
                 )
+            except HTTPException:
+                raise
             except Exception as e:
                 print(f"Failed to save opening message to DB: {e}")
 
         return {"opening_text": opening_text}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate opening: {str(e)}")
 

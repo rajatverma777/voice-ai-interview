@@ -2,6 +2,29 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { sendChatMessage, synthesizeSpeech, transcribeAudio, getOpeningMessage, getHistory } from '../services/api';
 
+const parseSafeDate = (val) => {
+  if (!val) return new Date();
+  if (val instanceof Date) return isNaN(val.getTime()) ? new Date() : val;
+  try {
+    let s = val.toString().trim();
+    if (s.includes(' ') && !s.includes('T')) {
+      s = s.replace(' ', 'T');
+    }
+    const match = s.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3})\d+(.*)$/);
+    if (match) {
+      s = match[1] + match[2];
+    }
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d;
+    const fallback = s.replace(/-/g, '/').replace('T', ' ');
+    const dFallback = new Date(fallback);
+    if (!isNaN(dFallback.getTime())) return dFallback;
+  } catch (e) {
+    console.error("Error parsing date:", e);
+  }
+  return new Date();
+};
+
 export default function useInterview() {
   const [messages, setMessages]   = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -170,7 +193,7 @@ export default function useInterview() {
             id: uuidv4(),
             role: m.role,
             content: m.content,
-            timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+            timestamp: parseSafeDate(m.timestamp),
             feedback: m.feedback || null
           })));
           hasLoadedFromCache = true;
@@ -191,7 +214,7 @@ export default function useInterview() {
           id: uuidv4(),
           role: m.role,
           content: m.content,
-          timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+          timestamp: parseSafeDate(m.timestamp),
           feedback: m.feedback || null
         }));
         setMessages(parsedMessages);

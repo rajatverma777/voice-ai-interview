@@ -196,7 +196,7 @@ export default function HomePage() {
           <button
             onClick={() => navigate(`/interview?mode=${selectedMode}`)}
             disabled={backendStatus !== 'online'}
-            className={`px-8 py-3.5 text-white font-bold tracking-widest rounded-2xl btn-liquid-glass uppercase ${
+            className={`px-8 py-3.5 text-white font-bold tracking-widest rounded-2xl btn-liquid-glass-accent uppercase ${
               backendStatus === 'online'
                 ? 'cursor-pointer'
                 : 'opacity-40 cursor-not-allowed'

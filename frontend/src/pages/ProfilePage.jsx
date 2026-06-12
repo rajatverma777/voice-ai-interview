@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { listSessions, clearHistory, clearAllHistory } from '../services/api';
+import { listSessions, clearHistory, clearAllHistory, getHistory } from '../services/api';
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
@@ -29,6 +29,12 @@ export default function ProfilePage() {
   const [editPhoto, setEditPhoto] = useState('');
   const [editError, setEditError] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Report Modal states
+  const [reportSessionId, setReportSessionId] = useState(null);
+  const [reportSession, setReportSession] = useState(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [reportError, setReportError] = useState('');
 
   const handleOpenEditModal = () => {
     setEditUsername(user?.username || '');
@@ -130,6 +136,22 @@ export default function ProfilePage() {
     }
   };
 
+  const handleOpenReport = async (sess) => {
+    setReportSessionId(sess.session_id);
+    setReportSession(null);
+    setLoadingReport(true);
+    setReportError('');
+    try {
+      const data = await getHistory(sess.session_id);
+      setReportSession(data);
+    } catch (err) {
+      console.error(err);
+      setReportError('Failed to load session details.');
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
   // Stats are shown as N/A now since messages aren't included in the sessions list.
   // They will be populated if sessions have summary fields from the backend.
   const { stats, suggestions, totalExchanges } = React.useMemo(() => {
@@ -179,13 +201,57 @@ export default function ProfilePage() {
     };
   }, [sessions]);
 
-  const getSessionScore = (sess) => {
+  const getSessionScore = React.useCallback((sess) => {
+    if (sess.score_summary && sess.score_summary.overall != null) {
+      return Math.round(sess.score_summary.overall);
+    }
     if (!sess.messages) return 0;
     const feedbackMsgs = sess.messages.filter(m => m.role === 'assistant' && m.feedback);
     if (feedbackMsgs.length === 0) return 0;
-    const sum = feedbackMsgs.reduce((acc, m) => acc + m.feedback.overall_score, 0);
+    const sum = feedbackMsgs.reduce((acc, m) => acc + (m.feedback.overall_score || 0), 0);
     return Math.round(sum / feedbackMsgs.length);
-  };
+  }, []);
+
+  const trendData = useMemo(() => {
+    const validSessions = sessions
+      .filter(s => {
+        // Exclude empty sessions (where user hasn't asked/answered anything)
+        const hasMessages = s.message_count > 0;
+        return hasMessages;
+      })
+      .slice(0, 6)
+      .reverse();
+    return validSessions.map((s, idx) => ({
+      index: idx,
+      score: getSessionScore(s)
+    }));
+  }, [sessions, getSessionScore]);
+
+  const chartWidth = 220;
+  const chartHeight = 65;
+
+  const chartPoints = useMemo(() => {
+    if (trendData.length === 0) return '';
+    if (trendData.length === 1) {
+      const y = chartHeight - (trendData[0].score * chartHeight / 100);
+      return `M 0 ${y} L ${chartWidth} ${y}`;
+    }
+    return trendData.map((d, i) => {
+      const x = i * (chartWidth / (trendData.length - 1));
+      const y = chartHeight - (d.score * chartHeight / 100);
+      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+    }).join(' ');
+  }, [trendData]);
+
+  const chartAreaPoints = useMemo(() => {
+    if (trendData.length <= 1) return '';
+    const path = trendData.map((d, i) => {
+      const x = i * (chartWidth / (trendData.length - 1));
+      const y = chartHeight - (d.score * chartHeight / 100);
+      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+    }).join(' ');
+    return `${path} L ${chartWidth} ${chartHeight} L 0 ${chartHeight} Z`;
+  }, [trendData]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Recent';
@@ -204,7 +270,7 @@ export default function ProfilePage() {
   return (
     <div className="pt-24 min-h-screen relative overflow-hidden px-4 md:px-8 flex flex-col">
 
-      <div className="w-full max-w-[94%] xl:max-w-[1440px] mx-auto relative z-10 flex-1 flex flex-col space-y-8 pb-16">
+      <div className="w-full max-w-[94%] xl:max-w-[1440px] mx-auto relative z-10 flex-1 flex flex-col space-y-8 pb-16 profile-main-content">
         
         {/* ── PROFILE HERO SECTION (SPLIT IN TWO PARTS) ── */}
         <div className="flex flex-col lg:flex-row gap-6 w-full items-stretch">
@@ -274,16 +340,49 @@ export default function ProfilePage() {
           </div>
 
           {/* Part 2: Quick Stats Dashboard */}
-          <div className="glass-profile card-liquid rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass flex flex-row items-stretch gap-4 font-mono justify-center relative overflow-hidden lg:min-w-[340px]">
+          <div className="glass-profile card-liquid rounded-3xl p-6 md:p-8 border border-border/80 shadow-glass flex flex-col sm:flex-row items-stretch gap-6 font-mono justify-between relative overflow-hidden lg:min-w-[500px] flex-1">
             <div className="absolute inset-0 bg-gradient-to-l from-accent/5 via-transparent to-teal/5 pointer-events-none" />
             
-            <div className="px-6 py-4 bg-void/10 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-accent/30 transition-colors z-10">
-              <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold whitespace-nowrap">Total Sessions</span>
-              <span className="text-2xl font-display font-black text-accent mt-1">{sessions.length}</span>
+            <div className="flex flex-col gap-4 flex-1">
+              <div className="px-6 py-4 bg-void/10 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-accent/30 transition-colors z-10">
+                <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold whitespace-nowrap">Total Sessions</span>
+                <span className="text-2xl font-display font-black text-accent mt-1">{sessions.length}</span>
+              </div>
+              <div className="px-6 py-4 bg-void/10 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-accent/30 transition-colors z-10">
+                <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold whitespace-nowrap">Total Queries</span>
+                <span className="text-2xl font-display font-black text-accent mt-1">{totalExchanges}</span>
+              </div>
             </div>
-            <div className="px-6 py-4 bg-void/10 border border-border/85 rounded-2xl min-w-[130px] flex-1 flex flex-col justify-between hover:border-accent/30 transition-colors z-10">
-              <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold whitespace-nowrap">Total Queries</span>
-              <span className="text-2xl font-display font-black text-accent mt-1">{totalExchanges}</span>
+
+            <div className="flex-1 min-w-[200px] bg-void/10 border border-border/85 rounded-2xl p-4 flex flex-col justify-between hover:border-accent/30 transition-all z-10">
+              <span className="text-text-muted text-[9px] uppercase tracking-widest font-bold mb-3 block">Performance Trend</span>
+              {trendData.length > 0 ? (
+                <div className="w-full h-[65px] flex items-end">
+                  <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-full">
+                    <defs>
+                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#00d2ff" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="#00d2ff" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+                    {trendData.length > 1 && (
+                      <path d={chartAreaPoints} fill="url(#chartGrad)" />
+                    )}
+                    <path d={chartPoints} fill="none" stroke="#00d2ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    {trendData.map((d, i) => {
+                      const x = trendData.length === 1 ? chartWidth / 2 : i * (chartWidth / (trendData.length - 1));
+                      const y = chartHeight - (d.score * chartHeight / 100);
+                      return (
+                        <circle key={i} cx={x} cy={y} r="3" fill="#00d2ff" stroke="#08080a" strokeWidth="1" />
+                      );
+                    })}
+                  </svg>
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-center text-text-muted text-[8px] uppercase tracking-widest font-bold py-6">
+                  No data to trace
+                </div>
+              )}
             </div>
           </div>
 
@@ -413,7 +512,13 @@ export default function ProfilePage() {
                       return (
                         <div
                           key={sess.session_id}
-                          onClick={() => navigate(`/interview?session_id=${sess.session_id}&mode=${sess.mode}`)}
+                          onClick={() => {
+                            if (hasScore) {
+                              handleOpenReport(sess);
+                            } else {
+                              navigate(`/interview?session_id=${sess.session_id}&mode=${sess.mode}`);
+                            }
+                          }}
                           className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white/[0.03] border border-white/[0.06] rounded-2xl cursor-pointer gap-4 group card-liquid-subtle shadow-sm"
                         >
                           <div className="flex items-center gap-4">
@@ -671,6 +776,219 @@ export default function ProfilePage() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ── INTERVIEW PERFORMANCE REPORT MODAL ── */}
+      {reportSessionId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-void/80 backdrop-blur-md animate-fade-in report-modal-active">
+          <div className="max-w-4xl w-full max-h-[90vh] bg-[#08080a]/95 backdrop-blur-[12px] rounded-3xl border border-accent/30 shadow-glow relative animate-scale-in flex flex-col text-white overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 border-b border-white/[0.06] flex-shrink-0">
+              <div className="space-y-1">
+                <span className="text-[9px] font-mono font-bold tracking-widest text-accent uppercase block">OP_REPORT // METRICS CALIBRATED</span>
+                <h3 className="text-base font-display font-black text-white tracking-wider uppercase flex items-center gap-2">
+                  Session Report
+                </h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-xl border border-white/[0.08] hover:border-accent/40 bg-void/10 hover:bg-accent/5 text-text-secondary hover:text-accent flex items-center gap-2 transition-all duration-300 text-xs font-mono font-bold uppercase"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="6 9 6 2 18 2 18 9"/>
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                    <rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                  <span>Print / PDF</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setReportSessionId(null);
+                    setReportSession(null);
+                  }}
+                  className="w-8 h-8 rounded-full border border-white/[0.08] hover:border-red-500/40 text-text-muted hover:text-red-400 hover:bg-red-500/5 flex items-center justify-center transition-all duration-300 text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+              {loadingReport ? (
+                <div className="py-20 text-center flex flex-col justify-center items-center">
+                  <div className="w-10 h-10 rounded-full border-2 border-accent/15 border-t-accent animate-spin mb-4" />
+                  <p className="text-text-secondary text-xs tracking-widest uppercase font-mono">Calibrating Diagnostic Logs...</p>
+                </div>
+              ) : reportError ? (
+                <div className="py-12 text-center text-red-400 font-mono text-xs">
+                  {reportError}
+                </div>
+              ) : reportSession ? (
+                <div className="space-y-6">
+                  {/* Summary Header */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                    {/* Scores Gauge card */}
+                    <div className="p-5 bg-void/10 border border-white/[0.06] rounded-2xl flex flex-col sm:flex-row items-center gap-6">
+                      <div className="relative w-24 h-24 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle cx="48" cy="48" r="40" stroke="rgba(30, 41, 59, 0.4)" strokeWidth="4" fill="transparent" />
+                          <circle
+                            cx="48"
+                            cy="48"
+                            r="40"
+                            stroke="url(#reportGrad)"
+                            strokeWidth="4"
+                            fill="transparent"
+                            strokeDasharray={251.2}
+                            strokeDashoffset={251.2 - (251.2 * getSessionScore(reportSession)) / 100}
+                            strokeLinecap="round"
+                            className="transition-all duration-1000 ease-out"
+                          />
+                          <defs>
+                            <linearGradient id="reportGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stopColor="#00d2ff" />
+                              <stop offset="100%" stopColor="#6366f1" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                        <div className="absolute flex flex-col items-center justify-center">
+                          <span className="text-xl font-display font-black text-white">{getSessionScore(reportSession)}%</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-text-muted text-[8px] font-mono uppercase tracking-widest font-bold block">Assessment Grade</span>
+                        <h4 className="text-sm font-display font-extrabold text-white uppercase tracking-wide text-left">
+                          {reportSession.mode === 'dsa' ? 'DSA & Algorithms' : reportSession.mode === 'system_design' ? 'System Design' : 'Behavioral & HR'}
+                        </h4>
+                        <span className="text-[10px] text-text-secondary font-mono block text-left">{formatDate(reportSession.created_at)}</span>
+                        {reportSession.target_role && (
+                          <span className="text-[10px] text-accent font-mono block text-left">Target: {reportSession.target_role} {reportSession.target_company && `at ${reportSession.target_company}`}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Subscore meters */}
+                    <div className="p-5 bg-void/10 border border-white/[0.06] rounded-2xl space-y-3">
+                      {/* Calculate averages specifically for this session */}
+                      {(() => {
+                        const feedbackMsgs = reportSession.messages ? reportSession.messages.filter(m => m.role === 'assistant' && m.feedback) : [];
+                        const tech = feedbackMsgs.length ? Math.round(feedbackMsgs.reduce((a, m) => a + m.feedback.technical_accuracy, 0) / feedbackMsgs.length) : 0;
+                        const clarity = feedbackMsgs.length ? Math.round(feedbackMsgs.reduce((a, m) => a + m.feedback.communication_clarity, 0) / feedbackMsgs.length) : 0;
+                        const confidence = feedbackMsgs.length ? Math.round(feedbackMsgs.reduce((a, m) => a + m.feedback.confidence_level, 0) / feedbackMsgs.length) : 0;
+                        return (
+                          <>
+                            <ScoreMeter label="Technical Correctness" value={tech} />
+                            <ScoreMeter label="Communication Clarity" value={clarity} />
+                            <ScoreMeter label="Confidence Indicators" value={confidence} />
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Question-by-question transcript breakdown */}
+                  <div className="space-y-4 pt-4 border-t border-white/[0.06] text-left">
+                    <span className="text-[9px] font-mono font-bold tracking-widest text-text-muted uppercase block mb-2">Q&A transcript & feedback</span>
+                    {(() => {
+                      const qaPairs = [];
+                      let lastQuestion = null;
+                      if (reportSession.messages) {
+                        reportSession.messages.forEach(m => {
+                          if (m.role === 'assistant') {
+                            lastQuestion = m;
+                          } else if (m.role === 'user' && lastQuestion) {
+                            const nextAssistant = reportSession.messages.find(
+                              (msg, idx) => idx > reportSession.messages.indexOf(m) && msg.role === 'assistant'
+                            );
+                            qaPairs.push({
+                              question: lastQuestion.content,
+                              answer: m.content,
+                              feedback: nextAssistant?.feedback || null
+                            });
+                            lastQuestion = null;
+                          }
+                        });
+                      }
+
+                      if (qaPairs.length === 0) {
+                        return (
+                          <div className="text-center py-6 text-text-muted font-mono text-[10px] uppercase">
+                            No Q&A exchanges logged.
+                          </div>
+                        );
+                      }
+
+                      return qaPairs.map((pair, idx) => (
+                        <div key={idx} className="p-4 bg-white/[0.02] border border-white/[0.04] rounded-2xl space-y-3">
+                          <div className="flex gap-2">
+                            <span className="text-accent font-bold text-xs uppercase font-mono">Q{idx + 1}:</span>
+                            <p className="text-xs text-white leading-relaxed font-semibold">{pair.question}</p>
+                          </div>
+                          <div className="pl-6 border-l border-white/[0.06] py-1 space-y-2.5">
+                            <div className="text-xs text-text-secondary leading-relaxed">
+                              <span className="text-[10px] font-mono font-bold text-text-muted uppercase tracking-wider block mb-0.5">Your Response:</span>
+                              {pair.answer}
+                            </div>
+                            {pair.feedback && (
+                              <div className="mt-3 p-3.5 bg-void/35 border border-white/[0.04] rounded-xl space-y-3">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
+                                  <div className="flex gap-4 text-[9px] font-mono">
+                                    <span>Tech: <strong className="text-accent">{pair.feedback.technical_accuracy}%</strong></span>
+                                    <span>Clarity: <strong className="text-accent">{pair.feedback.communication_clarity}%</strong></span>
+                                    <span>Confidence: <strong className="text-accent">{pair.feedback.confidence_level}%</strong></span>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-accent font-mono">Score: {pair.feedback.overall_score}%</span>
+                                </div>
+                                {pair.feedback.suggestions && pair.feedback.suggestions.length > 0 && (
+                                  <div className="space-y-1 pt-2 border-t border-white/[0.04]">
+                                    <span className="text-[8px] font-mono font-bold text-text-muted uppercase block">Coach Suggestions:</span>
+                                    {pair.feedback.suggestions.map((s, sIdx) => (
+                                      <div key={sIdx} className="text-[10.5px] text-text-secondary flex items-start gap-1.5 leading-relaxed">
+                                        <span className="text-accent">💡</span>
+                                        <span>{s}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Modal Footer */}
+            {reportSession && (
+              <div className="p-5 border-t border-white/[0.06] flex justify-between items-center flex-wrap gap-3 flex-shrink-0 bg-void/20 no-print">
+                <button
+                  onClick={() => {
+                    setReportSessionId(null);
+                    setReportSession(null);
+                  }}
+                  className="px-5 py-2.5 rounded-xl border border-white/[0.08] hover:border-white/20 bg-void/10 hover:bg-white/[0.04] text-text-secondary hover:text-white text-xs font-mono font-bold uppercase transition-all"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    setReportSessionId(null);
+                    setReportSession(null);
+                    navigate(`/interview?session_id=${reportSession.session_id}&mode=${reportSession.mode}`);
+                  }}
+                  className="px-6 py-2.5 rounded-xl border border-accent/40 bg-accent/10 hover:bg-accent/20 hover:border-accent/80 text-accent hover:text-white text-xs font-mono font-bold uppercase transition-all shadow-[0_0_15px_rgba(0,210,255,0.12)]"
+                >
+                  Resume Interview Session
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
