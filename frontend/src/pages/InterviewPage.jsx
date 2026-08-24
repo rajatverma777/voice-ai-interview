@@ -502,17 +502,17 @@ export default function InterviewPage() {
                   borderStyle: 'solid',
                   backgroundColor: (
                     activeDifficulty === 'easy'   ? 'rgba(16,185,129,0.09)' :
-                    activeDifficulty === 'medium' ? 'rgba(245,158,11,0.09)' :
+                    activeDifficulty === 'medium' ? 'rgba(0,210,255,0.09)'  :
                                                     'rgba(239,68,68,0.09)'
                   ),
                   borderColor: (
                     activeDifficulty === 'easy'   ? 'rgba(16,185,129,0.30)' :
-                    activeDifficulty === 'medium' ? 'rgba(245,158,11,0.30)' :
+                    activeDifficulty === 'medium' ? 'rgba(0,210,255,0.35)'  :
                                                     'rgba(239,68,68,0.35)'
                   ),
                   boxShadow: (
                     activeDifficulty === 'easy'   ? '0 0 15px rgba(16,185,129,0.12)' :
-                    activeDifficulty === 'medium' ? '0 0 15px rgba(245,158,11,0.12)' :
+                    activeDifficulty === 'medium' ? '0 0 15px rgba(0,210,255,0.12)'  :
                                                     '0 0 15px rgba(239,68,68,0.12)'
                   ),
                   transform: `translate3d(${difficultyIndicator.left}px, -50%, 0)`,
@@ -527,7 +527,7 @@ export default function InterviewPage() {
                 
                 const getActiveTextClass = () => {
                   if (d === 'easy')   return 'text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.25)]';
-                  if (d === 'medium') return 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.25)]';
+                  if (d === 'medium') return 'text-accent shadow-glow';
                   return 'text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.25)]';
                 };
 
@@ -565,18 +565,18 @@ export default function InterviewPage() {
                   borderWidth: '1px',
                   borderStyle: 'solid',
                   backgroundColor: (
-                    activeModelPreference === 'cloud' ? 'rgba(167,139,250,0.09)' :
-                    activeModelPreference === 'gpt2'  ? 'rgba(0,210,255,0.09)'   :
+                    activeModelPreference === 'cloud' ? 'rgba(0,210,255,0.09)' :
+                    activeModelPreference === 'gpt2'  ? 'rgba(0,210,255,0.09)' :
                                                         'rgba(251,191,36,0.09)'
                   ),
                   borderColor: (
-                    activeModelPreference === 'cloud' ? 'rgba(167,139,250,0.35)' :
-                    activeModelPreference === 'gpt2'  ? 'rgba(0,210,255,0.35)'   :
+                    activeModelPreference === 'cloud' ? 'rgba(0,210,255,0.35)' :
+                    activeModelPreference === 'gpt2'  ? 'rgba(0,210,255,0.35)' :
                                                         'rgba(251,191,36,0.35)'
                   ),
                   boxShadow: (
-                    activeModelPreference === 'cloud' ? '0 0 15px rgba(167,139,250,0.12)' :
-                    activeModelPreference === 'gpt2'  ? '0 0 15px rgba(0,210,255,0.12)'   :
+                    activeModelPreference === 'cloud' ? '0 0 15px rgba(0,210,255,0.12)' :
+                    activeModelPreference === 'gpt2'  ? '0 0 15px rgba(0,210,255,0.12)' :
                                                         '0 0 15px rgba(251,191,36,0.12)'
                   ),
                   transform: `translate3d(0, ${modelPreferenceIndicator.top}px, 0)`,
@@ -599,7 +599,7 @@ export default function InterviewPage() {
                 };
 
                 const getActiveTextClass = () => {
-                  if (pref === 'cloud') return 'text-violet-400 drop-shadow-[0_0_8px_rgba(167,139,250,0.25)]';
+                  if (pref === 'cloud') return 'text-accent shadow-glow';
                   if (pref === 'gpt2')  return 'text-accent shadow-glow';
                   return 'text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.25)]';
                 };
@@ -607,7 +607,7 @@ export default function InterviewPage() {
                 const getIcon = () => {
                   if (pref === 'cloud') {
                     return (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isActive ? 'text-violet-400' : 'text-text-muted transition-colors'}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isActive ? 'text-accent' : 'text-text-muted transition-colors'}>
                         <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                         <path d="M2 17l10 5 10-5"/>
                         <path d="M2 12l10 5 10-5"/>
