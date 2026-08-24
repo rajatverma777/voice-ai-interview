@@ -564,21 +564,9 @@ export default function InterviewPage() {
                   willChange: 'transform, height, background-color, border-color, box-shadow',
                   borderWidth: '1px',
                   borderStyle: 'solid',
-                  backgroundColor: (
-                    activeModelPreference === 'cloud' ? 'rgba(0,210,255,0.09)' :
-                    activeModelPreference === 'gpt2'  ? 'rgba(0,210,255,0.09)' :
-                                                        'rgba(251,191,36,0.09)'
-                  ),
-                  borderColor: (
-                    activeModelPreference === 'cloud' ? 'rgba(0,210,255,0.35)' :
-                    activeModelPreference === 'gpt2'  ? 'rgba(0,210,255,0.35)' :
-                                                        'rgba(251,191,36,0.35)'
-                  ),
-                  boxShadow: (
-                    activeModelPreference === 'cloud' ? '0 0 15px rgba(0,210,255,0.12)' :
-                    activeModelPreference === 'gpt2'  ? '0 0 15px rgba(0,210,255,0.12)' :
-                                                        '0 0 15px rgba(251,191,36,0.12)'
-                  ),
+                  backgroundColor: 'rgba(0,210,255,0.09)',
+                  borderColor: 'rgba(0,210,255,0.35)',
+                  boxShadow: '0 0 15px rgba(0,210,255,0.12)',
                   transform: `translate3d(0, ${modelPreferenceIndicator.top}px, 0)`,
                   height: `${modelPreferenceIndicator.height}px`,
                   opacity: modelPreferenceIndicator.opacity,
@@ -599,9 +587,7 @@ export default function InterviewPage() {
                 };
 
                 const getActiveTextClass = () => {
-                  if (pref === 'cloud') return 'text-accent shadow-glow';
-                  if (pref === 'gpt2')  return 'text-accent shadow-glow';
-                  return 'text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.25)]';
+                  return 'text-accent shadow-glow';
                 };
 
                 const getIcon = () => {
@@ -625,7 +611,7 @@ export default function InterviewPage() {
                     );
                   }
                   return (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isActive ? 'text-amber-400' : 'text-text-muted transition-colors'}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isActive ? 'text-accent' : 'text-text-muted transition-colors'}>
                       <line x1="18" y1="20" x2="18" y2="10"/>
                       <line x1="12" y1="20" x2="12" y2="4"/>
                       <line x1="6" y1="20" x2="6" y2="14"/>
