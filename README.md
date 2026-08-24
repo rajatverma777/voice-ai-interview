@@ -12,8 +12,11 @@ A full-stack AI-powered mock interview platform that lets you practice technical
 |---|---|
 | 🎙️ Voice Input | Speak answers using your mic (Whisper AI transcribes) |
 | 🤖 AI Interviewer | GPT/Gemini asks DSA, HR, and System Design questions |
-| 🔊 Voice Output | AI responses are read aloud via gTTS |
+| 🔊 Voice Output | AI responses are read aloud via gTTS / OpenAI TTS |
 | 📊 Feedback Scores | Real-time scoring on technical accuracy, clarity, confidence |
+| 🧠 Local ML Mode | Support Vector Machine (SVM) model trained from scratch to evaluate answers offline |
+| ⏱️ Rate-Limit Timer | Real-time countdown UI when hitting Gemini/OpenAI API rate limits |
+| 🎨 Glassmorphic Input | Liquid glass send button changing states dynamically (Blue -> Yellow -> Red) |
 | 💾 Session Memory | Conversation context preserved across turns |
 | ✍️ Typing Mode | Switch between voice and text input |
 | 🌓 Dark UI | Glassmorphism design with gradient animations |
@@ -87,6 +90,66 @@ voice-ai-interview/
     └── utils/
         └── database.py             # MongoDB (Motor) connection
 ```
+
+---
+
+## 🔄 Voice-AI Pipeline Architecture
+
+The platform operates on a robust, sequential pipeline that coordinates frontend capturing, server-side transcription, AI/ML generation, and speech synthesis:
+
+```mermaid
+graph TD
+    A[User Voice Input] -->|WebM Audio Stream| B(FastAPI Speech Route)
+    B -->|Whisper STT Service| C{Transcribed Answer}
+    C -->|If Online| D[Google Gemini 1.5 Flash / OpenAI GPT-4o-mini]
+    C -->|If Offline / Rate-Limited| E{Deployment Environment}
+    E -->|Local Dev M2 GPU| F[Local Fine-Tuned Transformer distilgpt2]
+    E -->|Prod Vercel/Render Free Tier| G[Local SVM Classifier & Heuristics]
+    D -->|AI Response Text| H(Evaluation & Feedback)
+    F -->|AI Response Text| H
+    G -->|Response Text & Feedback| H
+    H -->|Response Text & Scores| I[MongoDB Session Storage]
+    H -->|Response Text| J(gTTS / OpenAI TTS Engine)
+    J -->|MP3 Audio Stream| K[Frontend Audio Playback]
+```
+
+1. **Speech-to-Text (STT):** Captures microphone audio using the browser's native `MediaRecorder` API (WebM) and sends it to `/api/speech/transcribe` for local Whisper transcription.
+2. **Interviewer Response (Cloud LLM vs Local Hybrid Fallback):** 
+   - **Online:** Generates tailored follow-up questions using Gemini or OpenAI cloud engines.
+   - **Offline / Rate-Limited Fallback:** Automatically switches to offline mode based on your environment:
+     - **Local Developer Environment (Apple Silicon MPS):** Runs inference on a custom fine-tuned **Generative Causal Transformer Model (`distilgpt2`)** cached and run locally on Apple Metal GPU (`mps`).
+     - **Production Environment (Render / Vercel Free Tiers):** Gracefully falls back to a lightweight **Support Vector Machine (SVM) Classifier** and key-phrase routing to fit within the 512MB RAM constraints and avoid OOM crashes.
+3. **Response Evaluation:** Grades technical accuracy, clarity, and confidence metrics (via LLM or local TF-IDF + SVM vector space inference).
+4. **Text-to-Speech (TTS):** Synthesizes the generated response into an MP3 stream using the configured TTS engine (gTTS or OpenAI Audio API) for instant playback.
+
+---
+
+## 🧠 Local ML & Transformer Model Training (Offline Mode)
+
+The platform supports offline mock interviews using both generative transformers and lightweight classifiers.
+
+### 1. Generative Transformer Model (Fine-Tuned `distilgpt2`)
+A causal language model fine-tuned on custom structured prompt-completion pairs of interview questions.
+- **Hardware Acceleration:** Native PyTorch MPS (`mps`) backend for Apple Silicon M2 GPU acceleration.
+- **Training Script:** `backend/train_transformer.py`
+- **Output Directory:** `backend/resources/fine_tuned_gpt2/`
+- **How to Train:**
+  ```bash
+  source .venv/bin/activate
+  python backend/train_transformer.py
+  ```
+
+### 2. Machine Learning Classifier (SVM)
+A fast, lightweight classification pipeline mapping answers to Correct (2), Partial (1), or Incorrect (0) classes, ideal for production/hosting deployment where memory is restricted.
+- **Vectorizer:** TF-IDF Vectorizer (ngram range: 1 to 2) to capture technical terms.
+- **Classifier:** Linear SVM Classifier.
+- **Training Script:** `backend/train_model.py`
+- **Output Directory:** `backend/resources/` (`svm_classifier.pkl` & `tfidf_vectorizer.pkl`)
+- **How to Train:**
+  ```bash
+  source .venv/bin/activate
+  python backend/train_model.py
+  ```
 
 ---
 

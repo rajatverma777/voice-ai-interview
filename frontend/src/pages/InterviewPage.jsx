@@ -17,6 +17,26 @@ const VOICE_LABELS = {
   'en-GB-RyanNeural': 'British Male (Ryan)'
 };
 
+const MODEL_LABELS = {
+  gemini: '✨ Google Gemini 2.5 Flash',
+  openai_gpt4: '🧠 OpenAI GPT-4o API',
+  openai: '🧠 OpenAI GPT-4o Mini',
+  gpt2: '⚡ Local DistilGPT2 GPU',
+  svm: '📊 Local SVM Heuristic',
+};
+
+const getModelIcon = (model) => {
+  if (!model) return '🤖';
+  const m = model.toLowerCase();
+  if (m.includes('gemini')) return '✨';
+  if (m.includes('gpt-4o-mini') || m === 'openai') return '🧠';
+  if (m.includes('gpt-4o') || m === 'openai_gpt4') return '🧠';
+  if (m.includes('distilgpt2') || m === 'gpt2') return '⚡';
+  if (m.includes('svm')) return '📊';
+  return '🤖';
+};
+
+
 export default function InterviewPage() {
   const [searchParams] = useSearchParams();
   const initialMode = searchParams.get('mode') || 'dsa';
@@ -30,7 +50,9 @@ export default function InterviewPage() {
   const [showHintModal, setShowHintModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   const [settings, setSettings] = useState({
     voice: 'en-US-JennyNeural',
@@ -38,12 +60,14 @@ export default function InterviewPage() {
     autoPlay: true,
     targetRole: '',
     targetCompany: '',
+    preferredModel: 'gemini',
   });
 
   const chatEndRef = useRef(null);
 
   const {
-    messages, isLoading, isPlaying, feedback, mode, difficulty, error,
+    messages, isLoading, isPlaying, feedback, activeModel,
+    modelPreference, changeModelPreference, isApiLimitReached, mode, difficulty, error,
     sendMessage, processAudio, playAudio, stopAudio, startSession, loadSession, clearSession, setMode, setDifficulty,
   } = useInterview();
 
@@ -78,6 +102,61 @@ export default function InterviewPage() {
       window.removeEventListener('resize', updateIndicator);
     };
   }, [activeDifficulty]);
+
+  const modelPreferenceContainerRef = useRef(null);
+  const [modelPreferenceIndicator, setModelPreferenceIndicator] = useState({ top: 0, height: 0, opacity: 0 });
+  const [hoveredModelPreference, setHoveredModelPreference] = useState(null);
+  const activeModelPreference = hoveredModelPreference || modelPreference;
+
+  const getDisplayedActiveModel = () => {
+    if (activeModelPreference === 'gpt2' || activeModelPreference === 'local') {
+      return 'Local DistilGPT2';
+    }
+    if (activeModelPreference === 'svm') {
+      return 'Local SVM Classifier';
+    }
+    // Cloud Tier: check settings
+    try {
+      const settingsStr = localStorage.getItem('vai_settings');
+      const settings = settingsStr ? JSON.parse(settingsStr) : {};
+      const preferredModel = settings.preferredModel || 'gemini';
+      if (preferredModel === 'openai_gpt4') {
+        return 'GPT-4o';
+      }
+      if (preferredModel === 'openai') {
+        return 'GPT-4o Mini';
+      }
+    } catch (_) {}
+    return 'Gemini 2.5 Flash';
+  };
+  const displayedActiveModel = getDisplayedActiveModel();
+
+  // Update model preference indicator coordinates dynamically (vertical Y-axis movement)
+  useEffect(() => {
+    const updateIndicator = () => {
+      const container = modelPreferenceContainerRef.current;
+      if (!container) return;
+
+      const activeChild = container.querySelector('[data-active="true"]');
+      if (activeChild) {
+        setModelPreferenceIndicator({
+          top: activeChild.offsetTop,
+          height: activeChild.offsetHeight,
+          opacity: 1,
+        });
+      } else {
+        setModelPreferenceIndicator(prev => ({ ...prev, opacity: 0 }));
+      }
+    };
+
+    updateIndicator();
+
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [activeModelPreference]);
+
 
   const inputModeContainerRef = useRef(null);
   const [inputModeIndicator, setInputModeIndicator] = useState({ left: 0, width: 0, height: 0, opacity: 0 });
@@ -149,14 +228,24 @@ export default function InterviewPage() {
 
   // Load settings from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('vai_settings');
-    if (saved) {
-      try {
-        setSettings(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+    const loadSettings = () => {
+      const saved = localStorage.getItem('vai_settings');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setSettings(prev => ({
+            ...prev,
+            ...parsed,
+            preferredModel: parsed.preferredModel || 'gemini'
+          }));
+        } catch (e) {
+          console.error(e);
+        }
       }
-    }
+    };
+    loadSettings();
+    window.addEventListener('vai_settings_updated', loadSettings);
+    return () => window.removeEventListener('vai_settings_updated', loadSettings);
   }, []);
 
   // Initialize mode from URL search parameters on fresh load
@@ -221,7 +310,7 @@ export default function InterviewPage() {
   // Interview Timer
   useEffect(() => {
     let interval = null;
-    if (sessionStarted && !isLoading) {
+    if (sessionStarted && !isLoading && !isPaused) {
       interval = setInterval(() => {
         setTimerSeconds(s => s + 1);
       }, 1000);
@@ -229,7 +318,7 @@ export default function InterviewPage() {
       clearInterval(interval);
     }
     return () => clearInterval(interval);
-  }, [sessionStarted, isLoading]);
+  }, [sessionStarted, isLoading, isPaused]);
 
   // Close preferences dropdown on outside click
   useEffect(() => {
@@ -252,6 +341,7 @@ export default function InterviewPage() {
   };
 
   const handleMicClick = () => {
+    if (isPaused) return;
     if (isRecording) {
       stopRecording();
     } else {
@@ -274,7 +364,13 @@ export default function InterviewPage() {
     setSessionStarted(false);
     setTypingText('');
     setTimerSeconds(0);
+    setIsPaused(false);
     resetRecording();
+  };
+
+  const handleTogglePause = () => {
+    setIsPaused(v => !v);
+    stopAudio();
   };
 
   const handleGetHint = async () => {
@@ -397,19 +493,44 @@ export default function InterviewPage() {
           <div className="font-mono">
             <p className="text-[9px] text-text-muted mb-2 font-bold tracking-widest uppercase">Difficulty Level</p>
             <div className={`flex rounded-full relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px] card-liquid transition-all duration-300 ${!(sessionStarted || messages.length > 0) ? 'hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)]' : 'opacity-60'}`} ref={difficultyContainerRef}>
-              {/* iOS Liquid Sliding Tab Indicator */}
+              {/* iOS Liquid Sliding Tab Indicator — Color-coded by difficulty */}
               <div
-                className="absolute left-0 top-1/2 bg-accent/[0.10] border border-accent/30 rounded-full pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
+                className="absolute left-0 top-1/2 rounded-full pointer-events-none transition-all duration-300"
                 style={{
+                  willChange: 'transform, width, height, background-color, border-color, box-shadow',
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                  backgroundColor: (
+                    activeDifficulty === 'easy'   ? 'rgba(16,185,129,0.09)' :
+                    activeDifficulty === 'medium' ? 'rgba(245,158,11,0.09)' :
+                                                    'rgba(239,68,68,0.09)'
+                  ),
+                  borderColor: (
+                    activeDifficulty === 'easy'   ? 'rgba(16,185,129,0.30)' :
+                    activeDifficulty === 'medium' ? 'rgba(245,158,11,0.30)' :
+                                                    'rgba(239,68,68,0.35)'
+                  ),
+                  boxShadow: (
+                    activeDifficulty === 'easy'   ? '0 0 15px rgba(16,185,129,0.12)' :
+                    activeDifficulty === 'medium' ? '0 0 15px rgba(245,158,11,0.12)' :
+                                                    '0 0 15px rgba(239,68,68,0.12)'
+                  ),
                   transform: `translate3d(${difficultyIndicator.left}px, -50%, 0)`,
                   width: `${difficultyIndicator.width}px`,
                   height: `${difficultyIndicator.height}px`,
                   opacity: difficultyIndicator.opacity,
-                  transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
+                  transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1), background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease',
                 }}
               />
               {['easy', 'medium', 'hard'].map(d => {
                 const isActive = activeDifficulty === d;
+                
+                const getActiveTextClass = () => {
+                  if (d === 'easy')   return 'text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.25)]';
+                  if (d === 'medium') return 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.25)]';
+                  return 'text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.25)]';
+                };
+
                 return (
                   <button
                     key={d}
@@ -418,17 +539,142 @@ export default function InterviewPage() {
                     onMouseEnter={() => setHoveredDifficulty(d)}
                     onMouseLeave={() => setHoveredDifficulty(null)}
                     onMouseDown={(e) => { e.preventDefault(); setDifficulty(d); }}
-                    className={`flex-1 py-1.5 rounded-full text-xs font-semibold tracking-wide btn-liquid z-10 relative border transition-all duration-300 capitalize text-center ${
+                    className={`flex-1 py-2 rounded-full text-xs font-semibold tracking-wide btn-liquid z-10 relative transition-all duration-300 capitalize text-center ${
                       isActive
-                        ? 'border-transparent text-accent'
-                        : 'border-white/[0.06] text-text-secondary bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06] hover:text-white disabled:opacity-30'
+                        ? getActiveTextClass()
+                        : 'text-text-secondary hover:text-white disabled:opacity-30'
                     }`}
+                    style={{ border: 'none', background: 'transparent' }}
                   >
                     {d}
                   </button>
                 );
               })}
             </div>
+          </div>
+
+          {/* Model Switcher Selector — Vertical stack for clean spacing */}
+          <div className="font-mono">
+            <p className="text-[9px] text-text-muted mb-2 font-bold tracking-widest uppercase">AI Model Engine</p>
+            <div className={`flex flex-col gap-1 rounded-2xl relative border border-white/[0.08] bg-white/[0.04] p-1 text-[11px] card-liquid transition-all duration-300 ${(sessionStarted || messages.length > 0) ? 'opacity-60' : 'hover:border-accent/35 hover:shadow-[0_0_20px_rgba(0,210,255,0.06)]'}`} ref={modelPreferenceContainerRef}>
+              {/* iOS Liquid Sliding Tab Indicator — Vertical translation anchored at top-0 */}
+              <div
+                className="absolute top-0 left-1 right-1 rounded-xl pointer-events-none transition-all duration-300"
+                style={{
+                  willChange: 'transform, height, background-color, border-color, box-shadow',
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                  backgroundColor: (
+                    activeModelPreference === 'cloud' ? 'rgba(167,139,250,0.09)' :
+                    activeModelPreference === 'gpt2'  ? 'rgba(0,210,255,0.09)'   :
+                                                        'rgba(251,191,36,0.09)'
+                  ),
+                  borderColor: (
+                    activeModelPreference === 'cloud' ? 'rgba(167,139,250,0.35)' :
+                    activeModelPreference === 'gpt2'  ? 'rgba(0,210,255,0.35)'   :
+                                                        'rgba(251,191,36,0.35)'
+                  ),
+                  boxShadow: (
+                    activeModelPreference === 'cloud' ? '0 0 15px rgba(167,139,250,0.12)' :
+                    activeModelPreference === 'gpt2'  ? '0 0 15px rgba(0,210,255,0.12)'   :
+                                                        '0 0 15px rgba(251,191,36,0.12)'
+                  ),
+                  transform: `translate3d(0, ${modelPreferenceIndicator.top}px, 0)`,
+                  height: `${modelPreferenceIndicator.height}px`,
+                  opacity: modelPreferenceIndicator.opacity,
+                  transition: 'transform 320ms cubic-bezier(0.25,1,0.5,1), height 320ms cubic-bezier(0.25,1,0.5,1), opacity 300ms ease, background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease',
+                }}
+              />
+
+              {['cloud', 'gpt2', 'svm'].map(pref => {
+                const isActive = activeModelPreference === pref || (pref === 'gpt2' && activeModelPreference === 'local');
+                const isCloudDisabled = pref === 'cloud' && isApiLimitReached;
+                const isSwitcherDisabled = sessionStarted || messages.length > 0;
+                const isDisabled = isCloudDisabled || isSwitcherDisabled;
+                
+                const getLabel = () => {
+                  if (pref === 'cloud') return 'Cloud Tier';
+                  if (pref === 'gpt2') return 'Local Tier';
+                  return 'Fallback Tier';
+                };
+
+                const getActiveTextClass = () => {
+                  if (pref === 'cloud') return 'text-violet-400 drop-shadow-[0_0_8px_rgba(167,139,250,0.25)]';
+                  if (pref === 'gpt2')  return 'text-accent shadow-glow';
+                  return 'text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.25)]';
+                };
+
+                const getIcon = () => {
+                  if (pref === 'cloud') {
+                    return (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isActive ? 'text-violet-400' : 'text-text-muted transition-colors'}>
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                      </svg>
+                    );
+                  }
+                  if (pref === 'gpt2') {
+                    return (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isActive ? 'text-accent' : 'text-text-muted transition-colors'}>
+                        <rect x="2" y="2" width="20" height="8" rx="2"/>
+                        <rect x="2" y="14" width="20" height="8" rx="2"/>
+                        <line x1="6" y1="6" x2="6.01" y2="6"/>
+                        <line x1="6" y1="18" x2="6.01" y2="18"/>
+                      </svg>
+                    );
+                  }
+                  return (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={isActive ? 'text-amber-400' : 'text-text-muted transition-colors'}>
+                      <line x1="18" y1="20" x2="18" y2="10"/>
+                      <line x1="12" y1="20" x2="12" y2="4"/>
+                      <line x1="6" y1="20" x2="6" y2="14"/>
+                      <polyline points="2 7 6 3 10 7"/>
+                    </svg>
+                  );
+                };
+                
+                return (
+                  <button
+                    key={pref}
+                    data-active={isActive}
+                    disabled={isDisabled}
+                    onMouseEnter={() => setHoveredModelPreference(pref)}
+                    onMouseLeave={() => setHoveredModelPreference(null)}
+                    onMouseDown={(e) => { 
+                      e.preventDefault(); 
+                      if (!isDisabled) {
+                        changeModelPreference(pref);
+                        updateSetting('preferredModel', pref);
+                      }
+                    }}
+                    className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold tracking-wide btn-liquid z-10 relative transition-all duration-300 flex items-center justify-center gap-2.5 text-center ${
+                      isActive
+                        ? getActiveTextClass()
+                        : 'text-text-secondary bg-white/[0.01] hover:text-white disabled:opacity-25 disabled:cursor-not-allowed'
+                    }`}
+                    style={{ border: 'none', background: 'transparent' }}
+                    title={
+                      isSwitcherDisabled
+                        ? 'Cannot change engine during active session'
+                        : isCloudDisabled
+                        ? 'API rate limit reached or key invalid'
+                        : `Switch to ${getLabel()} engine`
+                    }
+                  >
+                    {getIcon()}
+                    <span>{getLabel()}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+
+            {isApiLimitReached && (
+              <span className="text-[8px] text-red-400 font-bold block mt-1 tracking-wide animate-pulse">
+                ⚠️ API Limit Reached — Locked to Local
+              </span>
+            )}
           </div>
           {/* Session controllers */}
           <div className="space-y-2.5 font-mono text-[11px]">
@@ -449,12 +695,22 @@ export default function InterviewPage() {
                 </button>
               )
             ) : (
-              <button
-                onMouseDown={(e) => { e.preventDefault(); handleClearSession(); }}
-                className="w-full py-3.5 rounded-2xl btn-liquid-glass-danger uppercase tracking-wider"
-              >
-                End Session
-              </button>
+              <div className="flex gap-3 w-full">
+                <button
+                  onMouseDown={(e) => { e.preventDefault(); handleClearSession(); }}
+                  className="flex-1 py-3.5 rounded-2xl btn-liquid-glass-danger uppercase tracking-wider text-xs font-extrabold"
+                >
+                  End Session
+                </button>
+                <button
+                  onMouseDown={(e) => { e.preventDefault(); handleTogglePause(); }}
+                  className={`flex-1 py-3.5 text-white font-extrabold rounded-2xl uppercase tracking-wider text-xs transition-all duration-300 flex items-center justify-center gap-1.5 ${
+                    isPaused ? 'btn-liquid-glass bg-amber-500/25 border-amber-500/50 hover:bg-amber-500/35' : 'btn-liquid-glass'
+                  }`}
+                >
+                  {isPaused ? '▶ Resume' : '⏸ Pause'}
+                </button>
+              </div>
             )}
           </div>
 
@@ -513,6 +769,13 @@ export default function InterviewPage() {
                   {isPlaying ? 'ACTIVE' : 'STANDBY'}
                 </span>
               </div>
+              <div className="flex justify-between items-center pt-2 border-t border-white/[0.06]">
+                <span className="text-text-secondary">ACTIVE MODEL</span>
+                <span className="text-white font-bold flex items-center gap-1.5">
+                  <span className="text-xs">{getModelIcon(displayedActiveModel)}</span>
+                  <span>{displayedActiveModel}</span>
+                </span>
+              </div>
             </div>
           )}
 
@@ -530,27 +793,29 @@ export default function InterviewPage() {
         <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between font-mono bg-transparent z-20 gap-3 md:gap-4">
           
           {/* Left Pill Group */}
-          <div className="bg-[#08080a]/10 backdrop-blur-[2px] border border-white/[0.06] rounded-full px-3 py-1.5 flex items-center gap-4 shadow-glass card-liquid hover:border-accent/35 hover:shadow-[0_0_15px_rgba(0,210,255,0.06)]">
-            <button
-              onClick={() => setShowSidebar(v => !v)}
-              className="w-8 h-8 rounded-full hover:bg-white/5 border border-transparent hover:border-border flex items-center justify-center text-text-secondary hover:text-white btn-liquid"
-              title="Toggle settings panel"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
-              </svg>
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="bg-[#08080a]/10 backdrop-blur-[2px] border border-white/[0.06] rounded-full px-3 py-1.5 flex items-center gap-4 shadow-glass card-liquid hover:border-accent/35 hover:shadow-[0_0_15px_rgba(0,210,255,0.06)]">
+              <button
+                onClick={() => setShowSidebar(v => !v)}
+                className="w-8 h-8 rounded-full hover:bg-white/5 border border-transparent hover:border-border flex items-center justify-center text-text-secondary hover:text-white btn-liquid"
+                title="Toggle settings panel"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+              </button>
 
-            <div className="flex items-center gap-2.5 pr-2">
-              <div className={`w-2 h-2 rounded-full ${sessionStarted ? 'bg-accent animate-pulse shadow-glow' : 'bg-red-500'}`} />
-              <span className="text-[10px] font-bold tracking-wider text-white hidden sm:inline">
-                {sessionStarted ? 'SESSION ACTIVE' : 'STANDBY'}
-              </span>
-              {(sessionStarted || messages.length > 0) && (
-                <span className="text-[9.5px] bg-accent/15 border border-accent/25 text-accent px-2.5 py-0.5 rounded-full ml-1 font-bold font-mono">
-                  ⏱ {formatTime(timerSeconds)}
+              <div className="flex items-center gap-2.5 pr-2">
+                <div className={`w-2 h-2 rounded-full ${sessionStarted ? (isPaused ? 'bg-amber-500 shadow-none' : 'bg-accent animate-pulse shadow-glow') : 'bg-red-500'}`} />
+                <span className="text-[10px] font-bold tracking-wider text-white hidden sm:inline">
+                  {sessionStarted ? (isPaused ? 'SESSION PAUSED' : 'SESSION ACTIVE') : 'STANDBY'}
                 </span>
-              )}
+                {(sessionStarted || messages.length > 0) && (
+                  <span className="text-[9.5px] bg-accent/15 border border-accent/25 text-accent px-2.5 py-0.5 rounded-full ml-1 font-bold font-mono">
+                    ⏱ {formatTime(timerSeconds)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -628,6 +893,57 @@ export default function InterviewPage() {
                             {label}
                           </button>
                         ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Model select */}
+                  <div className="space-y-2 text-left relative">
+                    <label className="text-[10px] font-mono font-bold text-text-secondary uppercase tracking-wider block">AI Interviewer Model</label>
+                    <button
+                      type="button"
+                      disabled={sessionStarted || messages.length > 0}
+                      onMouseDown={(e) => { 
+                        e.preventDefault(); 
+                        if (!(sessionStarted || messages.length > 0)) {
+                          setModelDropdownOpen(v => !v); 
+                        }
+                      }}
+                      className="w-full bg-void/50 border border-border/85 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-accent/60 transition-colors font-sans flex items-center justify-between hover:border-accent/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span>{MODEL_LABELS[settings.preferredModel || 'gemini']}</span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`transition-transform duration-200 ${modelDropdownOpen ? 'rotate-180' : ''}`}>
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
+                    </button>
+                    
+                    {modelDropdownOpen && (
+                      <div className="absolute left-0 right-0 mt-1.5 bg-[#08080a] border border-border/85 rounded-xl overflow-hidden z-[60] shadow-2xl p-1 space-y-0.5 animate-scale-in">
+                        {Object.entries(MODEL_LABELS).map(([value, label]) => {
+                          const isCloud = value === 'gemini' || value === 'openai' || value === 'openai_gpt4';
+                          const isCloudDisabled = isCloud && isApiLimitReached;
+                          
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              disabled={isCloudDisabled}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                if (!isCloudDisabled) {
+                                  updateSetting('preferredModel', value);
+                                  changeModelPreference(isCloud ? 'cloud' : 'local');
+                                  setModelDropdownOpen(false);
+                                }
+                              }}
+                              className={`w-full px-3 py-2 text-left text-[11px] rounded-lg transition-colors hover:bg-accent/10 hover:text-accent font-sans disabled:opacity-25 disabled:cursor-not-allowed ${
+                                (settings.preferredModel || 'gemini') === value ? 'text-accent bg-accent/5 font-semibold' : 'text-text-secondary'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -725,9 +1041,10 @@ export default function InterviewPage() {
                     Hint
                   </button>
 
-                  <MicButton
+                   <MicButton
                     isRecording={isRecording}
                     isLoading={isLoading}
+                    isPaused={isPaused}
                     onClick={handleMicClick}
                     volume={volume}
                   />
@@ -764,12 +1081,12 @@ export default function InterviewPage() {
             ) : (
               <div className="flex flex-col items-center gap-3 max-w-4xl mx-auto w-full">
                 <form onSubmit={handleTypingSubmit} className="flex gap-2.5 w-full items-center">
-                  <input
+                   <input
                     type="text"
                     value={typingText}
                     onChange={e => setTypingText(e.target.value)}
-                    placeholder="Type your response here..."
-                    disabled={isLoading}
+                    placeholder={isPaused ? "Session is paused. Click Resume to continue..." : "Type your response here..."}
+                    disabled={isLoading || isPaused}
                     className="flex-1 bg-transparent border border-white/[0.06] rounded-full px-5 py-3 text-xs text-white placeholder:text-text-muted focus:outline-none focus:border-accent/80 focus:shadow-[0_0_15px_rgba(0,210,255,0.1)] transition-all disabled:opacity-50 font-sans min-w-0 input-keyboard-response"
                   />
                   

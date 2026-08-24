@@ -49,12 +49,14 @@ class ChatRequest(BaseModel):
     history: Optional[List[Message]] = []
     target_role: Optional[str] = None
     target_company: Optional[str] = None
+    preferred_model: Optional[str] = "gemini"
 
 
 class ChatResponse(BaseModel):
     response: str
     session_id: str
     feedback: Optional[dict] = None
+    model_used: Optional[str] = None
 
 
 class TTSRequest(BaseModel):

@@ -4,6 +4,7 @@ dist
 build
 # Mac
 .DS_Store
+**/.DS_Store
 
 # Python
 __pycache__/
@@ -13,3 +14,7 @@ __pycache__/
 # Virtual Env
 .venv/
 env/
+
+# Local Large ML Models (Avoid pushing to GitHub due to 100MB file size limit)
+backend/resources/fine_tuned_gpt2/
+backend/resources/*.pkl

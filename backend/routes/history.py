@@ -70,6 +70,53 @@ async def list_sessions(current_user: dict = Depends(get_current_user)):
             {"$limit": 20},
             {
                 "$addFields": {
+                    "preferred_model": {
+                        "$ifNull": [
+                            "$preferred_model",
+                            {
+                                "$let": {
+                                    "vars": {
+                                        "assistant_msgs": {
+                                            "$filter": {
+                                                "input": {"$ifNull": ["$messages", []]},
+                                                "as": "m",
+                                                "cond": {"$and": [
+                                                    {"$eq": ["$$m.role", "assistant"]},
+                                                    {"$ne": ["$$m.model_used", None]}
+                                                ]}
+                                            }
+                                        }
+                                    },
+                                    "in": {
+                                        "$cond": {
+                                            "if": {"$gt": [{"$size": "$$assistant_msgs"}, 0]},
+                                            "then": {
+                                                "$let": {
+                                                    "vars": {
+                                                        "last_model": {"$arrayElemAt": ["$$assistant_msgs.model_used", -1]}
+                                                    },
+                                                    "in": {
+                                                        "$cond": {
+                                                            "if": {"$regexMatch": {"input": "$$last_model", "regex": "Local Distil", "options": "i"}},
+                                                            "then": "gpt2",
+                                                            "else": {
+                                                                "$cond": {
+                                                                    "if": {"$regexMatch": {"input": "$$last_model", "regex": "SVM|Heuristic", "options": "i"}},
+                                                                    "then": "svm",
+                                                                    "else": "cloud"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "else": "cloud"
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    },
                     "message_count": {
                         "$size": {
                             "$filter": {

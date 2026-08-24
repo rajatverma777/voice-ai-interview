@@ -83,7 +83,7 @@ export const transcribeAudio = async (audioBlob) => {
 };
 
 // ── AI Chat ──────────────────────────────────────────────────────
-export const sendChatMessage = async ({ message, sessionId, mode, difficulty, history, targetRole, targetCompany }) => {
+export const sendChatMessage = async ({ message, sessionId, mode, difficulty, history, targetRole, targetCompany, preferredModel }) => {
   const res = await api.post('/api/ai/chat', {
     message,
     session_id: sessionId,
@@ -91,7 +91,8 @@ export const sendChatMessage = async ({ message, sessionId, mode, difficulty, hi
     difficulty,
     history: history.map(m => ({ role: m.role, content: m.content })),
     target_role: targetRole || null,
-    target_company: targetCompany || null
+    target_company: targetCompany || null,
+    preferred_model: preferredModel || 'gemini'
   });
   return res.data;
 };
@@ -101,13 +102,14 @@ export const getInterviewModes = async () => {
   return res.data.modes;
 };
 
-export const getOpeningMessage = async (mode, difficulty, sessionId = null, targetRole = null, targetCompany = null) => {
+export const getOpeningMessage = async (mode, difficulty, sessionId = null, targetRole = null, targetCompany = null, preferredModel = 'gemini') => {
   let url = `/api/ai/opening?mode=${mode}&difficulty=${difficulty}`;
   if (sessionId) url += `&session_id=${sessionId}`;
   if (targetRole) url += `&target_role=${encodeURIComponent(targetRole)}`;
   if (targetCompany) url += `&target_company=${encodeURIComponent(targetCompany)}`;
+  url += `&preferred_model=${preferredModel}`;
   const res = await api.get(url);
-  return res.data.opening_text;
+  return res.data;
 };
 
 export const getQuestionHint = async (mode, question) => {

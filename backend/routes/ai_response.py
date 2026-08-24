@@ -13,17 +13,20 @@ router = APIRouter()
 async def chat(request: ChatRequest, current_user: dict = Depends(get_current_user)):
     """Generate AI interviewer response."""
     try:
-        ai_response = await generate_response(
+        ai_response, model_used = await generate_response(
             message=request.message,
             history=request.history,
             mode=request.mode,
             difficulty=request.difficulty,
             target_role=request.target_role,
-            target_company=request.target_company
+            target_company=request.target_company,
+            preferred_model=request.preferred_model
         )
 
         # Analyze response for feedback
-        feedback = await analyze_response(request.message, ai_response, request.mode, request.history)
+        feedback = await analyze_response(
+            request.message, ai_response, request.mode, request.history, preferred_model=request.preferred_model
+        )
 
         # Persist to MongoDB
         try:
@@ -39,7 +42,7 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
                         "messages": {
                             "$each": [
                                 {"role": "user", "content": request.message, "timestamp": datetime.utcnow()},
-                                {"role": "assistant", "content": ai_response, "feedback": feedback, "timestamp": datetime.utcnow()}
+                                {"role": "assistant", "content": ai_response, "feedback": feedback, "model_used": model_used, "timestamp": datetime.utcnow()}
                             ]
                         }
                     },
@@ -62,7 +65,8 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
         return ChatResponse(
             response=ai_response,
             session_id=request.session_id,
-            feedback=feedback
+            feedback=feedback,
+            model_used=model_used
         )
 
     except HTTPException:
@@ -90,6 +94,7 @@ async def get_opening(
     session_id: str = None,
     target_role: str = None,
     target_company: str = None,
+    preferred_model: str = "gemini",
     current_user: dict = Depends(get_current_user)
 ):
     """Fetch dynamic opening message with randomized or custom first question."""
@@ -97,7 +102,7 @@ async def get_opening(
         from services.ai_service import get_custom_opening_message, InterviewMode
         # Map string to InterviewMode
         mode_enum = InterviewMode(mode)
-        opening_text = await get_custom_opening_message(mode_enum, difficulty, target_role, target_company)
+        opening_text, model_used = await get_custom_opening_message(mode_enum, difficulty, target_role, target_company, preferred_model)
 
         if session_id:
             try:
@@ -115,7 +120,8 @@ async def get_opening(
                                     "role": "assistant",
                                     "content": opening_text,
                                     "timestamp": datetime.utcnow(),
-                                    "feedback": None
+                                    "feedback": None,
+                                    "model_used": model_used
                                 }
                             ],
                             "mode": mode,
@@ -135,7 +141,7 @@ async def get_opening(
             except Exception as e:
                 print(f"Failed to save opening message to DB: {e}")
 
-        return {"opening_text": opening_text}
+        return {"opening_text": opening_text, "model_used": model_used}
     except HTTPException:
         raise
     except Exception as e:
@@ -146,7 +152,14 @@ async def get_opening(
 async def get_hint(mode: str, question: str):
     """Fetch hint for the current question."""
     try:
+        from services.ai_service import generate_hint, InterviewMode
         from services.ai_service import DSA_QUESTIONS, HR_QUESTIONS, SYSTEM_QUESTIONS, DSA_HINTS, HR_HINTS, SYSTEM_HINTS
+        
+        mode_enum = InterviewMode(mode)
+        hint = await generate_hint(question, mode_enum)
+        if hint:
+            return {"hint": hint}
+
         q_clean = question.lower().strip()
         
         if mode == "dsa":

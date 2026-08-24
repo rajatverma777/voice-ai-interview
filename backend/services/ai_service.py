@@ -1,3 +1,4 @@
+import os
 from config import get_settings
 from models.schemas import InterviewMode, Message
 from typing import List, Optional
@@ -153,6 +154,151 @@ CORRECT_PRAISE = [
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
+def _get_resource_path(relative_path: str) -> str:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    clean_path = relative_path
+    if relative_path.startswith("backend/"):
+        clean_path = relative_path[len("backend/"):]
+    return os.path.join(base_dir, clean_path)
+
+_gpt2_model = None
+_gpt2_tokenizer = None
+
+def _load_gpt2_model():
+    global _gpt2_model, _gpt2_tokenizer
+    if _gpt2_model is None or _gpt2_tokenizer is None:
+        try:
+            import os
+            import torch
+            from transformers import AutoTokenizer, AutoModelForCausalLM
+            model_path = _get_resource_path("backend/resources/fine_tuned_gpt2")
+            if os.path.exists(model_path):
+                print(f"[GPT2_MODEL] Loading fine-tuned GPT2 from {model_path}...")
+                _gpt2_tokenizer = AutoTokenizer.from_pretrained(model_path)
+                _gpt2_model = AutoModelForCausalLM.from_pretrained(model_path)
+                device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+                _gpt2_model.to(device)
+                print(f"[GPT2_MODEL] Loaded successfully on {device}.")
+            else:
+                print(f"[GPT2_MODEL] Local model not found at {model_path}.")
+        except Exception as e:
+            print(f"[GPT2_MODEL] Failed to load local GPT2 model: {e}")
+
+def _generate_gpt2_response(message: str, history: List[Message], mode: InterviewMode, quality: str = "correct") -> Optional[str]:
+    # Intercept skips/don't knows to prevent tiny local model from hallucinating gibberish
+    if _is_skip(message) or _is_dont_know(message):
+        try:
+            return _demo_response(message, history, mode)
+        except Exception:
+            pass
+
+    _load_gpt2_model()
+    if _gpt2_model is None or _gpt2_tokenizer is None:
+        return None
+        
+    try:
+        import torch
+        # Find last question
+        last_q = ""
+        for msg in reversed(history or []):
+            if msg.role == "assistant":
+                last_q = msg.content
+                break
+        if not last_q:
+            last_q = get_opening_message(mode)
+            
+        last_q_clean = last_q.replace("**", "").replace("\n", " ").strip()
+        message_clean = message.replace("\n", " ").strip()
+        
+        mode_name = "DSA"
+        if mode == InterviewMode.HR:
+            mode_name = "HR"
+        elif mode == InterviewMode.SYSTEM_DESIGN:
+            mode_name = "System Design"
+            
+        prompt = f"Interview {mode_name}. Question: {last_q_clean} Answer: {message_clean}. Quality: {quality}."
+        input_text = f"<|prompt|>{prompt}<|completion|>"
+        
+        device = next(_gpt2_model.parameters()).device
+        inputs = _gpt2_tokenizer(input_text, return_tensors="pt").to(device)
+        
+        with torch.no_grad():
+            outputs = _gpt2_model.generate(
+                **inputs,
+                max_new_tokens=100,
+                pad_token_id=_gpt2_tokenizer.eos_token_id,
+                no_repeat_ngram_size=2,
+                do_sample=False
+            )
+            
+        generated_raw = _gpt2_tokenizer.decode(outputs[0], skip_special_tokens=False)
+        if "<|completion|>" in generated_raw:
+            completion_part = generated_raw.split("<|completion|>")[1]
+            if "<|endoftext|>" in completion_part:
+                completion_part = completion_part.split("<|endoftext|>")[0]
+            completion_part = completion_part.replace("<|endoftext|>", "").strip()
+            if completion_part:
+                return completion_part
+                
+        # Fallback
+        generated_clean = _gpt2_tokenizer.decode(outputs[0], skip_special_tokens=True)
+        prompt_clean = f"Interview {mode_name}. Question: {last_q_clean} Answer: {message_clean}."
+        if prompt_clean in generated_clean:
+            return generated_clean.split(prompt_clean)[1].strip()
+        return generated_clean.replace(prompt, "").strip()
+    except Exception as e:
+        print(f"[GPT2_MODEL] Error during inference: {e}")
+        return None
+
+
+def _assess_answer_quality(message: str, history: List[Message], mode: InterviewMode, difficulty: str) -> str:
+    msg_clean = message.lower().strip()
+    if msg_clean in ["skip", "pass", "i don't know", "dont know", "no idea", "idk"]:
+        return "incorrect"
+        
+    # Check if user just pasted/asked a question
+    if "?" in msg_clean or msg_clean.startswith("what is") or msg_clean.startswith("how do") or msg_clean.startswith("explain") or msg_clean.startswith("let us move"):
+        return "unrelated"
+        
+    last_q = ""
+    for msg in reversed(history or []):
+        if msg.role == "assistant":
+            last_q = msg.content
+            break
+    if not last_q:
+        last_q = get_opening_message(mode)
+        
+    q_clean = last_q.lower()
+    topic = "generic"
+    if mode == InterviewMode.DSA:
+        for q_topic, q_text in DSA_QUESTIONS:
+            if q_text.lower()[:20] in q_clean or q_clean[:20] in q_text.lower():
+                topic = q_topic
+                break
+    elif mode == InterviewMode.HR:
+        for q_text in HR_QUESTIONS:
+            if q_text.lower()[:20] in q_clean or q_clean[:20] in q_text.lower():
+                topic = "behavioral"
+                break
+    else:
+        for q_text in SYSTEM_QUESTIONS:
+            if q_text.lower()[:20] in q_clean or q_clean[:20] in q_text.lower():
+                topic = "architecture"
+                break
+                
+    _load_ml_model()
+    if _vectorizer and _classifier:
+        try:
+            qual = _get_quality(message, topic)
+            if qual == "wrong":
+                return "incorrect"
+            return qual
+        except Exception:
+            pass
+            
+    return "partial"
+
+
 async def generate_response(
     message: str,
     history: Optional[List[Message]] = None,
@@ -160,23 +306,94 @@ async def generate_response(
     difficulty: str = "medium",
     target_role: Optional[str] = None,
     target_company: Optional[str] = None,
-) -> str:
+    preferred_model: str = "gemini",
+) -> tuple:
     system_prompt = SYSTEM_PROMPTS[mode]
     if target_role or target_company:
         role_company_directive = f"\n\nCandidate Target Job Role: {target_role or 'Software Engineer'}\nCandidate Target Company: {target_company or 'Tech Company'}\nTailor your questions, difficulty, and tone to match this specific target role and company standard.\n"
         system_prompt += role_company_directive
 
-    if settings.ai_provider == "gemini" and settings.gemini_api_key:
-        return await _gemini_response(message, history, mode, system_prompt)
-    elif settings.openai_api_key:
-        return await _openai_response(message, history, mode, system_prompt)
+    # Assess answer quality semantically using SVM classifier / rules
+    quality = _assess_answer_quality(message, history or [], mode, difficulty)
+
+    # Inject semantic assessment into system prompt for Cloud Models
+    quality_directive = f"\n\n[CRITICAL EVALUATION SYSTEM DIRECTIVE]\nThe candidate's response has been analyzed by a semantic evaluator.\nAssessment quality of candidate's answer: {quality.upper()}.\n"
+    if quality == "correct":
+        quality_directive += "The candidate's answer is factually correct. Praise their correct understanding, briefly elaborate on the concept, and transition to the next question.\n"
+    elif quality == "partial":
+        quality_directive += "The candidate's answer is partially correct but lacks detail. Acknowledge what was correct, point out what was missing, and guide them/ask the next follow-up.\n"
+    elif quality == "unrelated":
+        quality_directive += "The candidate's answer is completely unrelated to the interview question (for example, they asked a question or spoke about a different topic). Politely redirect them to the topic or transition to a new question if they seem stuck.\n"
     else:
-        return _demo_response(message, history or [], mode, difficulty)
+        quality_directive += "The candidate's answer is factually incorrect. Briefly explain the correct concept or logic, and transition to the next question.\n"
+        
+    system_prompt += quality_directive
+
+    # Route based on selected Preferred Model
+    model_used = "Local SVM Classifier"
+    
+    if preferred_model == "gemini" and settings.gemini_api_key:
+        try:
+            resp = await _gemini_response(message, history, mode, system_prompt)
+            return resp, "Gemini 2.5 Flash"
+        except Exception as e:
+            print(f"[AI_SERVICE] Gemini error: {e}. Falling back.")
+            pass
+            
+    if preferred_model == "openai_gpt4" and settings.openai_api_key:
+        try:
+            resp = await _openai_response(message, history, mode, system_prompt, model_name="gpt-4o")
+            return resp, "GPT-4o"
+        except Exception as e:
+            print(f"[AI_SERVICE] OpenAI GPT-4o error: {e}. Falling back.")
+            pass
+
+    if preferred_model == "openai" and settings.openai_api_key:
+        try:
+            resp = await _openai_response(message, history, mode, system_prompt, model_name="gpt-4o-mini")
+            return resp, "GPT-4o Mini"
+        except Exception as e:
+            print(f"[AI_SERVICE] OpenAI error: {e}. Falling back.")
+            pass
+
+    import os
+    model_path = _get_resource_path("backend/resources/fine_tuned_gpt2")
+    
+    if preferred_model == "gpt2" and os.path.exists(model_path):
+        gpt2_resp = _generate_gpt2_response(message, history or [], mode, quality)
+        if gpt2_resp:
+            return gpt2_resp, "Local DistilGPT2"
+            
+    if preferred_model == "svm":
+        return _demo_response(message, history or [], mode, difficulty), "Local SVM Classifier"
+
+    # Default Fallback Resolution Order
+    if settings.gemini_api_key:
+        try:
+            resp = await _gemini_response(message, history, mode, system_prompt)
+            return resp, "Gemini 2.5 Flash"
+        except Exception:
+            pass
+            
+    if settings.openai_api_key:
+        try:
+            # Fallback default uses gpt-4o-mini
+            resp = await _openai_response(message, history, mode, system_prompt, model_name="gpt-4o-mini")
+            return resp, "GPT-4o Mini"
+        except Exception:
+            pass
+            
+    if os.path.exists(model_path):
+        gpt2_resp = _generate_gpt2_response(message, history or [], mode, quality)
+        if gpt2_resp:
+            return gpt2_resp, "Local DistilGPT2"
+            
+    return _demo_response(message, history or [], mode, difficulty), "Local SVM Classifier"
 
 
 # ── OpenAI ────────────────────────────────────────────────────────────────────
 
-async def _openai_response(message, history, mode, system_prompt: str):
+async def _openai_response(message, history, mode, system_prompt: str, model_name: str = "gpt-4o-mini"):
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=settings.openai_api_key)
     msgs = [{"role": "system", "content": system_prompt}]
@@ -185,7 +402,7 @@ async def _openai_response(message, history, mode, system_prompt: str):
             msgs.append({"role": m.role, "content": m.content})
     msgs.append({"role": "user", "content": message})
     resp = await client.chat.completions.create(
-        model="gpt-4o-mini", messages=msgs, max_tokens=350, temperature=0.7
+        model=model_name, messages=msgs, max_tokens=350, temperature=0.7
     )
     return resp.choices[0].message.content.strip()
 
@@ -195,7 +412,7 @@ async def _openai_response(message, history, mode, system_prompt: str):
 async def _gemini_response(message, history, mode, system_prompt: str):
     import google.generativeai as genai
     genai.configure(api_key=settings.gemini_api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system_prompt)
+    model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system_prompt)
     chat_history = []
     if history:
         for m in history[-12:]:
@@ -211,10 +428,33 @@ async def get_custom_opening_message(
     mode: InterviewMode,
     difficulty: str = "medium",
     target_role: Optional[str] = None,
-    target_company: Optional[str] = None
-) -> str:
+    target_company: Optional[str] = None,
+    preferred_model: str = "gemini",
+) -> tuple:
+    model_used = "Local SVM Classifier"
+    import os
+    model_path = _get_resource_path("backend/resources/fine_tuned_gpt2")
+    if preferred_model == "gemini" and settings.gemini_api_key:
+        model_used = "Gemini 2.5 Flash"
+    elif preferred_model == "openai_gpt4" and settings.openai_api_key:
+        model_used = "GPT-4o"
+    elif preferred_model == "openai" and settings.openai_api_key:
+        model_used = "GPT-4o Mini"
+    elif preferred_model == "gpt2" and os.path.exists(model_path):
+        model_used = "Local DistilGPT2"
+    elif preferred_model == "svm":
+        model_used = "Local SVM Classifier"
+    else:
+        # Fallback order
+        if settings.gemini_api_key:
+            model_used = "Gemini 2.5 Flash"
+        elif settings.openai_api_key:
+            model_used = "GPT-4o Mini"
+        elif os.path.exists(model_path):
+            model_used = "Local DistilGPT2"
+
     if not (target_role or target_company):
-        return get_random_opening_message(mode, difficulty)
+        return get_random_opening_message(mode, difficulty), model_used
         
     mode_label = "Data Structures & Algorithms"
     if mode == InterviewMode.HR:
@@ -233,17 +473,31 @@ Generate a concise, professional greeting and ONE clear, relevant question to st
 Do not ask multiple questions. Keep it under 3 sentences. Do not use any markdown formatting or placeholders.
 """
 
-    if settings.ai_provider == "gemini" and settings.gemini_api_key:
+    if model_used == "Gemini 2.5 Flash":
         try:
             import google.generativeai as genai
             genai.configure(api_key=settings.gemini_api_key)
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-2.5-flash")
             resp = await model.generate_content_async(prompt)
-            return resp.text.strip()
+            return resp.text.strip(), model_used
         except Exception:
             pass
 
-    if settings.openai_api_key:
+    if model_used == "GPT-4o":
+        try:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=settings.openai_api_key)
+            resp = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150,
+                temperature=0.7
+            )
+            return resp.choices[0].message.content.strip(), model_used
+        except Exception:
+            pass
+
+    if model_used == "GPT-4o Mini":
         try:
             from openai import AsyncOpenAI
             client = AsyncOpenAI(api_key=settings.openai_api_key)
@@ -253,21 +507,33 @@ Do not ask multiple questions. Keep it under 3 sentences. Do not use any markdow
                 max_tokens=150,
                 temperature=0.7
             )
-            return resp.choices[0].message.content.strip()
+            return resp.choices[0].message.content.strip(), model_used
         except Exception:
             pass
 
-    return get_random_opening_message(mode, difficulty)
+    return get_random_opening_message(mode, difficulty), model_used
+
 
 # ── Demo evaluation ───────────────────────────────────────────────────────────
 
+_vectorizer = None
+_classifier = None
+
+def _load_ml_model():
+    global _vectorizer, _classifier
+    if _vectorizer is None or _classifier is None:
+        try:
+            import joblib
+            vec_path = _get_resource_path("backend/resources/tfidf_vectorizer.pkl")
+            clf_path = _get_resource_path("backend/resources/svm_classifier.pkl")
+            _vectorizer = joblib.load(vec_path)
+            _classifier = joblib.load(clf_path)
+        except Exception as e:
+            print(f"[ML_MODEL] Failed to load SVM models: {e}")
+
 def _get_quality(message: str, topic: str) -> str:
     """
-    Returns 'wrong', 'partial', or 'correct'.
-    
-    'wrong'  — clearly no knowledge (too short, filler phrases, zero keywords)
-    'partial' — some keywords but incomplete
-    'correct' — enough keywords to show genuine understanding
+    Returns 'wrong', 'partial', or 'correct' using a custom trained SVM classifier.
     """
     msg = message.lower().strip()
 
@@ -284,6 +550,20 @@ def _get_quality(message: str, topic: str) -> str:
     if len(msg.split()) < 8:
         return "wrong"
 
+    _load_ml_model()
+    if _vectorizer is not None and _classifier is not None:
+        try:
+            X = _vectorizer.transform([message])
+            pred = int(_classifier.predict(X)[0])
+            if pred == 2:
+                return "correct"
+            elif pred == 1:
+                return "partial"
+            return "wrong"
+        except Exception as e:
+            print(f"[ML_MODEL] Prediction error in _get_quality: {e}")
+
+    # Fallback to keyword-based heuristics if model files are not loaded
     keywords = KEYWORD_MAP.get(topic, [])
     hits = sum(1 for k in keywords if k in msg)
 
@@ -315,13 +595,24 @@ def _find_last_question(history: List[Message]) -> tuple:
 
 def _is_skip(message: str) -> bool:
     msg = message.lower().strip()
-    skip_phrases = ["next question", "next", "skip", "pass", "move on", "another question", "ask something else"]
-    return any(p in msg for p in skip_phrases) or msg == "next"
+    # 1. Exact full-message match for simple commands
+    if msg in ["pass", "skip", "next", "idk", "next question", "move on", "skip question"]:
+        return True
+    return False
 
 def _is_dont_know(message: str) -> bool:
     msg = message.lower().strip()
-    dont_know_phrases = ["don't know", "dont know", "no idea", "not sure", "i don't know", "i dont know", "no clue", "idk", "haven't studied", "have no idea", "no experience"]
-    return any(p in msg for p in dont_know_phrases)
+    # 2. Check standalone word boundary matches for dont know indicators
+    import re
+    dont_know_phrases = [
+        "don't know", "dont know", "no idea", "not sure", "no clue",
+        "haven't studied", "have no idea", "no experience", "idk"
+    ]
+    for p in dont_know_phrases:
+        if re.search(rf"\b{re.escape(p)}\b", msg):
+            return True
+    return False
+
 
 def _last_was_wrong_feedback(history: List[Message]) -> bool:
     for msg in reversed(history):
@@ -680,3 +971,37 @@ def _demo_response(message: str, history: List[Message], mode: InterviewMode, di
 
 def get_opening_message(mode: InterviewMode) -> str:
     return OPENING_MESSAGES.get(mode, OPENING_MESSAGES[InterviewMode.DSA])
+
+
+async def generate_hint(question: str, mode: InterviewMode) -> str:
+    prompt = f"""You are a technical mock interview coach.
+The candidate is stuck on the following question during a {mode.value.upper()} interview:
+"{question}"
+
+Generate a single, helpful, and concise hint that guides the candidate toward the solution without directly giving away the answer. Keep the hint to 1-2 sentences maximum. Do not use any markdown formatting or prefix labels like "Hint:".
+"""
+    if settings.ai_provider == "gemini" and settings.gemini_api_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.gemini_api_key)
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            resp = await model.generate_content_async(prompt)
+            return resp.text.strip()
+        except Exception:
+            pass
+
+    if settings.openai_api_key:
+        try:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=settings.openai_api_key)
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0.7
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception:
+            pass
+
+    return ""

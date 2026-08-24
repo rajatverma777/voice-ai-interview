@@ -1,7 +1,7 @@
 import React from 'react';
 
-export default function MicButton({ isRecording, isLoading, onClick, volume = 0 }) {
-  const isDisabled = isLoading;
+export default function MicButton({ isRecording, isLoading, onClick, volume = 0, isPaused = false }) {
+  const isDisabled = isLoading || isPaused;
 
   // Compute a dynamic scale based on microphone volume (0–255)
   const dynamicScale = isRecording ? 1 + (volume / 255) * 0.25 : 1;
@@ -39,11 +39,13 @@ export default function MicButton({ isRecording, isLoading, onClick, volume = 0 
         <div
           className={`
             relative z-10 w-16 h-16 rounded-full flex items-center justify-center btn-liquid
-            ${isDisabled
-              ? 'opacity-40 cursor-not-allowed bg-white/[0.02] border border-white/[0.06]'
-              : isRecording
-                ? 'bg-gradient-to-r from-accent to-[#00a6ff] text-void shadow-[0_0_25px_rgba(0,210,255,0.35)]'
-                : 'bg-white/[0.03] border border-accent/40 text-accent shadow-[0_0_25px_rgba(0,210,255,0.12),inset 0 1px 0 rgba(255,255,255,0.05)] hover:border-accent hover:bg-white/[0.06]'
+            ${isPaused
+              ? 'bg-[#08080a]/5 border border-amber-500/25 text-amber-500/40 cursor-not-allowed'
+              : isLoading
+                ? 'opacity-40 cursor-not-allowed bg-white/[0.02] border border-white/[0.06]'
+                : isRecording
+                  ? 'bg-gradient-to-r from-accent to-[#00a6ff] text-void shadow-[0_0_25px_rgba(0,210,255,0.35)]'
+                  : 'bg-white/[0.03] border border-accent/40 text-accent shadow-[0_0_25px_rgba(0,210,255,0.12),inset 0 1px 0 rgba(255,255,255,0.05)] hover:border-accent hover:bg-white/[0.06]'
             }
           `}
         >
@@ -89,28 +91,34 @@ export default function MicButton({ isRecording, isLoading, onClick, volume = 0 
 
       {/* Telemetry Status Capsule */}
       <div className={`flex items-center gap-2 px-3.5 py-1 rounded-full border transition-all duration-300 bg-white/[0.02] font-mono
-        ${isLoading 
-          ? 'border-indigo-500/25' 
-          : isRecording 
-            ? 'border-red-500/25' 
-            : 'border-white/[0.06]'
+        ${isPaused
+          ? 'border-amber-500/25'
+          : isLoading 
+            ? 'border-indigo-500/25' 
+            : isRecording 
+              ? 'border-red-500/25' 
+              : 'border-white/[0.06]'
         }`}
       >
         <span className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-          isLoading 
-            ? 'bg-indigo-400 animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.6)]' 
-            : isRecording 
-              ? 'bg-red-500 animate-[ping_1.2s_infinite] shadow-[0_0_8px_rgba(239,68,68,0.6)]' 
-              : 'bg-accent animate-[pulse_2s_infinite] shadow-[0_0_8px_rgba(0,210,255,0.6)]'
+          isPaused
+            ? 'bg-amber-500 shadow-none animate-none'
+            : isLoading 
+              ? 'bg-indigo-400 animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.6)]' 
+              : isRecording 
+                ? 'bg-red-500 animate-[ping_1.2s_infinite] shadow-[0_0_8px_rgba(239,68,68,0.6)]' 
+                : 'bg-accent animate-[pulse_2s_infinite] shadow-[0_0_8px_rgba(0,210,255,0.6)]'
         }`} />
         <span className={`text-[9px] tracking-widest uppercase transition-colors select-none font-bold ${
-          isRecording 
-            ? 'text-red-400 font-bold' 
-            : isLoading 
-              ? 'text-indigo-300' 
-              : 'text-text-secondary group-hover:text-accent'
+          isPaused
+            ? 'text-amber-400'
+            : isRecording 
+              ? 'text-red-400 font-bold' 
+              : isLoading 
+                ? 'text-indigo-300' 
+                : 'text-text-secondary group-hover:text-accent'
         }`}>
-          {isLoading ? 'Processing Signal' : isRecording ? 'Transmission Active' : 'Voice Core Ready'}
+          {isPaused ? 'Session Paused' : isLoading ? 'Processing Signal' : isRecording ? 'Transmission Active' : 'Voice Core Ready'}
         </span>
       </div>
     </div>

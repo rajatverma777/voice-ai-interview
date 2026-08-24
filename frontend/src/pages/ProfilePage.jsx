@@ -62,8 +62,8 @@ export default function ProfilePage() {
       // ─────────────────────────────────────────────────────────────────────
 
       // Step 1: Fast write — minimal metadata only (instant, no blocking)
-      const minimalList = newList.map(({ session_id, mode, created_at }) => ({
-        session_id, mode, created_at,
+      const minimalList = newList.map(({ session_id, mode, created_at, preferred_model }) => ({
+        session_id, mode, created_at, preferred_model,
       }));
       try { localStorage.setItem('vai_cached_sessions', JSON.stringify(minimalList)); } catch (_) {}
 
@@ -200,6 +200,41 @@ export default function ProfilePage() {
       suggestions: suggs
     };
   }, [sessions]);
+
+  const processedSuggestions = useMemo(() => {
+    // Category classifier — backend already guarantees clean, complete sentences.
+    // No truncation or text mutation here.
+    const classify = (s) => {
+      const t = s.toLowerCase();
+      if (t.includes('hedg') || t.includes('confident') || t.includes('i think') || t.includes('maybe') || t.includes('vague') || t.includes('unsure')) {
+        return { category: 'Confidence', colorClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
+      }
+      if (t.includes('complexity') || t.includes('hash') || t.includes('collision') || t.includes('o(1)') || t.includes('o(n)') || t.includes('accur') || t.includes('correct') || t.includes('incorrect') || t.includes('tradeoff') || t.includes('array') || t.includes('tree') || t.includes('recursion') || t.includes('worst') || t.includes('average') || t.includes('concept') || t.includes('explain') || t.includes('define')) {
+        return { category: 'Accuracy', colorClass: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' };
+      }
+      if (t.includes('sentence') || t.includes('structure') || t.includes('elaborate') || t.includes('concis') || t.includes('coherent') || t.includes('answer') || t.includes('attempt') || t.includes('state') || t.includes('mention') || t.includes('clarif') || t.includes('example') || t.includes('support') || t.includes('part')) {
+        return { category: 'Clarity', colorClass: 'bg-purple-500/10 text-purple-400 border-purple-500/20' };
+      }
+      return { category: 'General', colorClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+    };
+
+    // De-duplicate, filter blanks, take top 5
+    const seen = new Set();
+    const unique = [];
+    for (const s of suggestions) {
+      const clean = s.trim();
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        unique.push(clean);
+      }
+    }
+
+    return unique.slice(0, 5).map((s, index) => ({
+      id: index,
+      text: s,
+      ...classify(s),
+    }));
+  }, [suggestions]);
 
   const getSessionScore = React.useCallback((sess) => {
     if (sess.score_summary && sess.score_summary.overall != null) {
@@ -460,28 +495,45 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* ACTIONABLE ADVICE CARD */}
+              {/* COACH RECOMMENDATIONS CARD */}
               <div className="glass-profile card-liquid rounded-3xl p-6 border border-border/85 shadow-glass flex-1 flex flex-col">
                 <h2 className="font-display text-sm font-bold text-white tracking-wide uppercase flex items-center gap-2 mb-4">
                   <span className="w-2 h-2 rounded-full bg-teal" />
                   Coach Recommendations
+                  <span className="ml-auto text-[9px] font-mono text-text-muted font-normal normal-case tracking-normal">
+                    {processedSuggestions.length}/5 tips
+                  </span>
                 </h2>
-                <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin">
-                  {suggestions.length > 0 ? (
-                    suggestions.map((s, idx) => (
-                      <div key={idx} className="p-3.5 bg-void/10 border border-border/40 rounded-2xl flex items-start gap-3 text-xs text-text-secondary leading-relaxed hover:border-accent/20 transition-colors">
-                        <span className="text-accent text-sm mt-0.5">💡</span>
-                        <span>{s}</span>
+
+                {/* 5 fixed-height identical rows — backend guarantees ≤14 words / ≤90 chars */}
+                <div className="flex flex-col gap-2">
+                  {processedSuggestions.length > 0 ? (
+                    processedSuggestions.map((item) => (
+                      <div
+                        key={item.id}
+                        className="h-11 px-3.5 bg-void/15 border border-border/40 rounded-xl flex items-center gap-3 hover:border-accent/20 hover:bg-white/[0.015] transition-colors duration-200"
+                      >
+                        {/* Category badge */}
+                        <span className={`flex-shrink-0 text-[8px] font-mono font-bold tracking-widest uppercase border px-2 py-0.5 rounded-full flex items-center gap-1 ${item.colorClass}`}>
+                          <span className="w-1 h-1 rounded-full bg-current" />
+                          {item.category}
+                        </span>
+
+                        {/* Coaching tip — complete sentence, never truncated */}
+                        <p className="font-sans text-[11.5px] text-text-secondary leading-none flex-1">
+                          {item.text}
+                        </p>
                       </div>
                     ))
                   ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-6 font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                    <div className="h-[220px] flex flex-col items-center justify-center text-center font-mono text-[10px] text-text-muted uppercase tracking-widest">
                       <span>No advisory logs calibrated.</span>
                       <span className="text-[8px] mt-1.5 leading-normal normal-case font-sans tracking-normal text-text-muted">Complete a session to generate custom advice tips.</span>
                     </div>
                   )}
                 </div>
               </div>
+
             </div>
 
             {/* ── RIGHT COLUMN: SESSION LOG ARCHIVES ── */}
@@ -509,6 +561,29 @@ export default function ProfilePage() {
                       const hasScore = score > 0 || (sess.score_summary && sess.score_summary.overall != null);
                       const userMsgCount = sess.message_count || (sess.messages ? sess.messages.filter(m => m.role === 'user').length : 0);
                       
+                      const getModelBadge = () => {
+                        const tier = sess.preferred_model || 'cloud';
+                        if (tier === 'gpt2') {
+                          return (
+                            <span className="text-[8px] font-mono font-bold px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-accent uppercase tracking-wider">
+                              Local Tier
+                            </span>
+                          );
+                        }
+                        if (tier === 'svm') {
+                          return (
+                            <span className="text-[8px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 uppercase tracking-wider">
+                              Fallback Tier
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="text-[8px] font-mono font-bold px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 uppercase tracking-wider">
+                            Cloud Tier
+                          </span>
+                        );
+                      };
+
                       return (
                         <div
                           key={sess.session_id}
@@ -536,6 +611,7 @@ export default function ProfilePage() {
                                 <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-void/20 border border-border text-text-secondary uppercase">
                                   {userMsgCount} Queries
                                 </span>
+                                {getModelBadge()}
                               </div>
                               <div className="text-[11px] text-text-muted font-mono">
                                 {formatDate(sess.created_at)}

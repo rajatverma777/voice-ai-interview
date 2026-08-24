@@ -65,6 +65,70 @@ const FEATURES = [
   },
 ];
 
+const AI_MODELS = [
+  {
+    id: 'gemini',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-violet-400">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+    ),
+    label: 'Cloud Tier',
+    desc: 'Google Gemini & OpenAI cloud models. Maximum accuracy.',
+    tag: 'CLOUD_APIS',
+    accent: 'text-violet-400',
+    glow: 'shadow-violet-500/10',
+    activeBorder: 'border-violet-400/30',
+    activeBg: 'bg-violet-500/[0.08]',
+    iconActiveBg: 'bg-[#07050f]/80 border-violet-400/40',
+    code: 'TIER_01',
+  },
+  {
+    id: 'gpt2',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-accent">
+        <rect x="2" y="2" width="20" height="8" rx="2"/>
+        <rect x="2" y="14" width="20" height="8" rx="2"/>
+        <line x1="6" y1="6" x2="6.01" y2="6"/>
+        <line x1="6" y1="18" x2="6.01" y2="18"/>
+      </svg>
+    ),
+    label: 'Local Tier',
+    desc: 'Local transformer model. Fully offline, zero latency.',
+    tag: 'LOCAL_TRANSFORMER',
+    accent: 'text-accent',
+    glow: 'shadow-accent/10',
+    activeBorder: 'border-accent/30',
+    activeBg: 'bg-accent/[0.08]',
+    iconActiveBg: 'bg-[#070a13]/80 border-accent/40',
+    code: 'TIER_02',
+  },
+  {
+    id: 'svm',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-amber-400">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
+        <polyline points="2 7 6 3 10 7"/>
+      </svg>
+    ),
+    label: 'Fallback Tier',
+    desc: 'Heuristic SVM ML model. Instant offline execution.',
+    tag: 'LOCAL_HEURISTICS',
+    accent: 'text-amber-400',
+    glow: 'shadow-amber-500/10',
+    activeBorder: 'border-amber-400/30',
+    activeBg: 'bg-amber-500/[0.08]',
+    iconActiveBg: 'bg-[#0f0a03]/80 border-amber-400/40',
+    code: 'TIER_03',
+  },
+];
+
+
+
 const MODES = [
   {
     id: 'dsa',
@@ -103,11 +167,17 @@ const MODES = [
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const [backendStatus, setBackendStatus] = useState('checking');
-  const [selectedMode, setSelectedMode] = useState('dsa');
-  const [hoveredMode, setHoveredMode] = useState(null);
-  const modesContainerRef = useRef(null);
-  const [modesIndicator, setModesIndicator] = useState({ left: 0, top: 0, width: 0, height: 0, opacity: 0 });
+  const [backendStatus, setBackendStatus]   = useState('checking');
+  const [selectedMode, setSelectedMode]     = useState('dsa');
+  const [hoveredMode, setHoveredMode]       = useState(null);
+  const [selectedModel, setSelectedModel]   = useState('gemini');
+  const [hoveredModel, setHoveredModel]     = useState(null);
+
+  const modesContainerRef  = useRef(null);
+  const modelsContainerRef = useRef(null);
+
+  const [modesIndicator, setModesIndicator]   = useState({ left: 0, top: 0, width: 0, height: 0, opacity: 0 });
+  const [modelsIndicator, setModelsIndicator] = useState({ left: 0, top: 0, width: 0, height: 0, opacity: 0 });
 
   useEffect(() => {
     checkHealth().then(data => {
@@ -115,39 +185,68 @@ export default function HomePage() {
     });
   }, []);
 
-  // Update dynamic sliding indicator coordinates for module selector
+  // Sliding indicator for MODULE selector
   useEffect(() => {
-    const updateIndicator = () => {
+    let raf;
+    const update = () => {
       const container = modesContainerRef.current;
       if (!container) return;
-
-      const activeChild = container.querySelector('[data-active="true"]');
-      if (activeChild) {
+      const active = container.querySelector('[data-active="true"]');
+      if (active) {
         setModesIndicator({
-          left: activeChild.offsetLeft,
-          top: activeChild.offsetTop,
-          width: activeChild.offsetWidth,
-          height: activeChild.offsetHeight,
+          left:    active.offsetLeft,
+          top:     active.offsetTop,
+          width:   active.offsetWidth,
+          height:  active.offsetHeight,
           opacity: 1,
         });
       } else {
         setModesIndicator(prev => ({ ...prev, opacity: 0 }));
       }
     };
-
-    updateIndicator();
-
-    window.addEventListener('resize', updateIndicator);
+    // rAF ensures offsetLeft is measured after the browser has painted the new layout
+    raf = requestAnimationFrame(update);
+    window.addEventListener('resize', update);
     return () => {
-      window.removeEventListener('resize', updateIndicator);
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', update);
     };
   }, [selectedMode, hoveredMode]);
 
+  // Sliding indicator for MODEL selector
+  useEffect(() => {
+    let raf;
+    const update = () => {
+      const container = modelsContainerRef.current;
+      if (!container) return;
+      const active = container.querySelector('[data-active="true"]');
+      if (active) {
+        setModelsIndicator({
+          left:    active.offsetLeft,
+          top:     active.offsetTop,
+          width:   active.offsetWidth,
+          height:  active.offsetHeight,
+          opacity: 1,
+        });
+      } else {
+        setModelsIndicator(prev => ({ ...prev, opacity: 0 }));
+      }
+    };
+    raf = requestAnimationFrame(update);
+    window.addEventListener('resize', update);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', update);
+    };
+  }, [selectedModel, hoveredModel]);
+
   const handleModeClick = (modeId) => {
     setSelectedMode(modeId);
-    setTimeout(() => {
-      navigate(`/interview?mode=${modeId}`);
-    }, 280);
+    setTimeout(() => navigate(`/interview?mode=${modeId}&model=${selectedModel}`), 280);
+  };
+
+  const handleModelClick = (modelId) => {
+    setSelectedModel(modelId);
   };
 
   return (
@@ -194,7 +293,7 @@ export default function HomePage() {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center font-mono text-xs w-full sm:w-auto">
           <button
-            onClick={() => navigate(`/interview?mode=${selectedMode}`)}
+            onClick={() => navigate(`/interview?mode=${selectedMode}&model=${selectedModel}`)}
             disabled={backendStatus !== 'online'}
             className={`px-8 py-3.5 text-white font-bold tracking-widest rounded-2xl btn-liquid-glass-accent uppercase ${
               backendStatus === 'online'
@@ -254,23 +353,30 @@ export default function HomePage() {
         </div>
         
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto relative p-1" ref={modesContainerRef}>
-          {/* iOS Liquid Sliding Tab Indicator */}
+          {/* iOS Liquid Sliding Tab Indicator — GPU composited, no position jump */}
           <div
-            className="absolute bg-accent/[0.10] border border-accent/30 rounded-[22px] pointer-events-none shadow-[0_0_15px_rgba(0,210,255,0.06)]"
+            className="absolute rounded-[22px] pointer-events-none"
             style={{
+              willChange: 'transform, opacity',
+              backgroundColor: 'rgba(0,210,255,0.10)',
+              borderWidth: '1px',
+              borderStyle: 'solid',
+              borderColor: 'rgba(0,210,255,0.30)',
+              boxShadow: '0 0 15px rgba(0,210,255,0.06)',
               transform: `translate3d(${modesIndicator.left}px, ${modesIndicator.top}px, 0)`,
-              width: `${modesIndicator.width}px`,
-              height: `${modesIndicator.height}px`,
+              width:   `${modesIndicator.width}px`,
+              height:  `${modesIndicator.height}px`,
               left: 0,
-              top: 0,
+              top:  0,
               opacity: modesIndicator.opacity,
-              transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 380ms cubic-bezier(0.25,1,0.5,1)',
+              transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 300ms ease',
             }}
           />
 
           {MODES.map(mode => {
+            // isActive drives ONLY color changes — never layout/geometry
             const isActive = hoveredMode ? hoveredMode === mode.id : selectedMode === mode.id;
-            
+
             return (
               <button
                 key={mode.id}
@@ -278,25 +384,30 @@ export default function HomePage() {
                 onMouseEnter={() => setHoveredMode(mode.id)}
                 onMouseLeave={() => setHoveredMode(null)}
                 onClick={() => handleModeClick(mode.id)}
-                className={`
-                  flex items-center gap-4 p-5 rounded-[22px] border text-left
-                  group w-full btn-liquid relative z-10 transition-all cursor-pointer
-                  ${isActive
+                className={[
+                  // Fixed geometry — padding/border-width NEVER change, only colors
+                  'flex items-center gap-4 p-5 rounded-[22px] border text-left',
+                  'group w-full btn-liquid relative z-10 cursor-pointer',
+                  // transition-colors only — never transition size/padding/margin
+                  'transition-colors duration-200',
+                  isActive
                     ? 'border-transparent text-accent'
-                    : 'border-white/[0.06] text-text-secondary bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06] hover:text-white'
-                  }
-                `}
+                    // No hover:bg / hover:border — the indicator handles hover feedback
+                    : 'border-transparent text-text-secondary',
+                ].join(' ')}
               >
-                {/* Icon Squircle Container */}
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${
-                  isActive 
-                    ? 'bg-[#070a13]/80 border border-accent/40 text-accent shadow-sm shadow-accent/10' 
-                    : 'bg-void border border-border/85 text-text-secondary group-hover:text-accent group-hover:border-accent/30'
-                }`}>
+                {/* Icon Squircle — fixed w-12 h-12, only color transitions */}
+                <div className={[
+                  'w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0',
+                  'transition-colors duration-200',
+                  isActive
+                    ? 'bg-[#070a13]/80 border border-accent/40 text-accent'
+                    : 'bg-void border border-border/85 text-text-secondary',
+                ].join(' ')}>
                   {mode.icon}
                 </div>
-                
-                {/* Text Block */}
+
+                {/* Text — static layout, nothing conditionally rendered */}
                 <div className="min-w-0 flex-1 relative">
                   <div className="text-[9px] font-mono opacity-30 text-text-muted absolute -top-1.5 right-0">{mode.code}</div>
                   <div className="text-xs font-mono font-bold leading-tight uppercase tracking-wider">{mode.label}</div>
@@ -308,7 +419,114 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── AI MODEL ENGINE SELECTION ── */}
+      <section id="model-select" className="relative w-full max-w-[94%] xl:max-w-[1440px] mx-auto py-16 border-t border-border/50">
+        <div className="text-center mb-12">
+          <h2 className="text-xl font-display font-bold text-white uppercase tracking-wide">
+            AI Model Engine
+          </h2>
+          <p className="text-text-muted text-xs font-mono mt-2 uppercase tracking-widest">Select inference backend protocol</p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto relative p-1" ref={modelsContainerRef}>
+          {/* iOS Liquid Sliding Tab Indicator — separate borderColor so CSS can interpolate */}
+          <div
+            className="absolute rounded-[22px] pointer-events-none"
+            style={{
+              willChange: 'transform, opacity, background-color, border-color',
+              // Split border into discrete properties so the browser can interpolate borderColor
+              borderWidth: '1px',
+              borderStyle: 'solid',
+              // Color pair keyed off the active model — CSS will smooth-interpolate these
+              backgroundColor: (
+                (hoveredModel || selectedModel) === 'gemini'      ? 'rgba(167,139,250,0.09)' :
+                (hoveredModel || selectedModel) === 'openai_gpt4' ? 'rgba(34,211,238,0.09)'  :
+                (hoveredModel || selectedModel) === 'openai'      ? 'rgba(52,211,153,0.09)'  :
+                (hoveredModel || selectedModel) === 'gpt2'        ? 'rgba(0,210,255,0.09)'   :
+                (hoveredModel || selectedModel) === 'svm'         ? 'rgba(251,191,36,0.09)'  :
+                                                                    'rgba(0,210,255,0.09)'
+              ),
+              borderColor: (
+                (hoveredModel || selectedModel) === 'gemini'      ? 'rgba(167,139,250,0.35)' :
+                (hoveredModel || selectedModel) === 'openai_gpt4' ? 'rgba(34,211,238,0.35)'  :
+                (hoveredModel || selectedModel) === 'openai'      ? 'rgba(52,211,153,0.35)'  :
+                (hoveredModel || selectedModel) === 'gpt2'        ? 'rgba(0,210,255,0.35)'   :
+                (hoveredModel || selectedModel) === 'svm'         ? 'rgba(251,191,36,0.35)'  :
+                                                                    'rgba(0,210,255,0.35)'
+              ),
+              transform: `translate3d(${modelsIndicator.left}px, ${modelsIndicator.top}px, 0)`,
+              width:   `${modelsIndicator.width}px`,
+              height:  `${modelsIndicator.height}px`,
+              left: 0,
+              top:  0,
+              opacity: modelsIndicator.opacity,
+              // Only transition transform/size/opacity — color changes are nearly instant by design
+              transition: 'transform 380ms cubic-bezier(0.25,1,0.5,1), width 380ms cubic-bezier(0.25,1,0.5,1), height 380ms cubic-bezier(0.25,1,0.5,1), opacity 300ms ease, background-color 200ms ease, border-color 200ms ease',
+            }}
+          />
+
+
+          {AI_MODELS.map(model => {
+            // isActive drives ONLY color changes — never layout/geometry
+            const isActive = hoveredModel ? hoveredModel === model.id : selectedModel === model.id;
+            return (
+              <button
+                key={model.id}
+                data-active={isActive}
+                onMouseEnter={() => setHoveredModel(model.id)}
+                onMouseLeave={() => setHoveredModel(null)}
+                onClick={() => handleModelClick(model.id)}
+                className={[
+                  // Fixed geometry: same padding, same border-width always — only colors change
+                  'flex items-center gap-4 p-5 rounded-[22px] border text-left',
+                  'group w-full btn-liquid relative z-10 cursor-pointer',
+                  // transition-colors ONLY — never animate size, padding, or layout
+                  'transition-colors duration-200',
+                  isActive
+                    ? `border-transparent ${model.accent}`
+                    // transparent border keeps geometry identical to active state (no 1px shift)
+                    : 'border-transparent text-text-secondary',
+                ].join(' ')}
+              >
+                {/* Icon Squircle — strictly fixed w-12 h-12, only color transitions */}
+                <div className={[
+                  'w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0',
+                  'transition-colors duration-200',
+                  isActive
+                    ? `${model.iconActiveBg}`
+                    : 'bg-void border border-border/85 text-text-secondary',
+                ].join(' ')}>
+                  {model.icon}
+                </div>
+
+                {/* Text — completely static layout, NOTHING conditionally rendered inside */}
+                <div className="min-w-0 flex-1 relative">
+                  <div className="text-[9px] font-mono opacity-30 text-text-muted absolute -top-1.5 right-0">{model.code}</div>
+                  <div className="text-xs font-mono font-bold leading-tight uppercase tracking-wider">{model.label}</div>
+                  <div className="text-[10.5px] text-text-muted mt-1.5 leading-relaxed font-sans">{model.desc}</div>
+                  {/* ↑ No conditional badge here — any conditional content causes height shift → grid reflow → indicator jump */}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Active engine confirmation strip */}
+        <div className="mt-8 max-w-5xl mx-auto">
+          <div className="flex items-center justify-center gap-3 px-5 py-2.5 rounded-2xl border border-border/40 bg-white/[0.02] font-mono text-[9px] text-text-muted uppercase tracking-widest">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            Active engine:&nbsp;
+            <span className="text-white font-bold">
+              {AI_MODELS.find(m => m.id === selectedModel)?.label}
+            </span>
+            <span className="mx-2 opacity-30">·</span>
+            <span>{AI_MODELS.find(m => m.id === selectedModel)?.tag}</span>
+          </div>
+        </div>
+      </section>
+
       {/* ── DIAGNOSTICS & SPECS ── */}
+
       <section className="relative w-full max-w-[94%] xl:max-w-[1440px] mx-auto py-16 border-t border-border/50">
         <div className="text-center mb-12">
           <h2 className="text-xl font-display font-bold text-white uppercase tracking-wide">
