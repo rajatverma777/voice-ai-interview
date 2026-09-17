@@ -8,6 +8,7 @@ import AuthPage from './pages/AuthPage';
 import ProfilePage from './pages/ProfilePage';
 
 import BackgroundParticles from './components/BackgroundParticles';
+import ServerStatusBanner from './components/ServerStatusBanner';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -30,6 +31,7 @@ function AppRoutes() {
 
   return (
     <div className="min-h-screen bg-void dot-grid flex flex-col relative overflow-hidden">
+      <ServerStatusBanner />
       <BackgroundParticles />
       <Navbar />
       <main className="flex-1 z-10 relative" style={{ isolation: 'isolate' }}>
