@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { checkHealth } from '../services/api';
 
-const POLL_INTERVAL_MS  = 10000;
+const POLL_INTERVAL_MS  = 5000;
 const COUNTDOWN_SECONDS = 60;
 
 export default function ServerStatusBanner() {
@@ -49,7 +49,7 @@ export default function ServerStatusBanner() {
   }, [startCountdown, stopCountdown]);
 
   useEffect(() => {
-    const init = setTimeout(poll, 2000);
+    const init = setTimeout(poll, 200);
     pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
     return () => {
       clearTimeout(init);

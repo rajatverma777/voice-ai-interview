@@ -150,5 +150,5 @@ export const listSessions = async (config = {}) => {
 
 // ── Health Check ─────────────────────────────────────────────────
 export const checkHealth = async () => {
-  try { return (await api.get('/health')).data; } catch { return null; }
+  try { return (await api.get('/health', { timeout: 4000 })).data; } catch { return null; }
 };
